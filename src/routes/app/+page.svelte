@@ -1,13 +1,17 @@
 <script lang="ts">
+	import { getBookableTeams } from '$lib/remote/account.remote';
+	import { resolve } from '$app/paths';
+
 	let { data } = $props();
+	const teams = getBookableTeams();
 </script>
 
 <h1>{data.user.login}</h1>
 
-<ul>
-	<li><a href="/app/evals">My evals</a></li>
-	<li><a href="/app/book">Book eval</a></li>
-	<li><a href="/app/slots">My slots</a></li>
-</ul>
+{#if await teams}
+	<pre>{JSON.stringify(await teams, null, 2)}</pre>
+{:else}
+	<p>Loading teams…</p>
+{/if}
 
-<a href="/logout">Log out</a>
+<a href={resolve('/logout')}>Log out</a>

@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import { getValkey } from '$lib/server/valkey';
 import { exchangeCode } from '$lib/server/fourtytwo/oauth';
-import { FortyTwoClient } from '$lib/server/fourtytwo/client';
+import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { error, redirect } from '@sveltejs/kit';
 
 import type { FortyTwoError } from '$lib/server/fourtytwo/errors';
@@ -40,8 +40,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		(apiError) => throwOAuthError(apiError)
 	);
 
-	const client = new FortyTwoClient(token.access_token);
-	const meResult = await client.getMe();
+	const client = createFortyTwoClient(token.access_token);
+	const meResult = await client.users.me();
 
 	const me = meResult.match(
 		(value) => value,
@@ -96,13 +96,13 @@ function throwOAuthError(apiError: FortyTwoError): never {
 	switch (apiError.type) {
 		case 'network':
 			console.error('42 network error', apiError.cause);
-			error(502, 'Could not reach 42');
+			return error(502, 'Could not reach 42');
 		case 'http':
 			console.error('42 HTTP error', apiError.status, apiError.body);
-			error(502, '42 rejected the OAuth request');
+			return error(502, '42 rejected the OAuth request');
 		case 'invalid-response':
 			console.error('Invalid 42 response', apiError.issues);
-			error(502, '42 returned an invalid response');
+			return error(502, '42 returned an invalid response');
 	}
 }
 
