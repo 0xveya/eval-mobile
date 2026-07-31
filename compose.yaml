@@ -1,0 +1,20 @@
+services:
+  valkey:
+    image: valkey/valkey:9.1.1-alpine
+    container_name: eval-valkey
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    command:
+      - valkey-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - "64mb"
+      - --maxmemory-policy
+      - volatile-ttl
+    volumes:
+      - valkey-data:/data
+
+volumes:
+  valkey-data:

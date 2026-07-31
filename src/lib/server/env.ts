@@ -11,7 +11,7 @@ function required(name: string): string {
 }
 
 export const config = {
-	valkeyUrl: privateEnv.VALKEY_URL ?? 'redis://127.0.0.1:6379',
+	valkeyUrl: () => privateEnv.VALKEY_URL ?? 'redis://127.0.0.1:6379',
 	fortyTwoClientId: () => required('FORTYTWO_CLIENT_ID'),
 	fortyTwoClientSecret: () => required('FORTYTWO_CLIENT_SECRET'),
 	fortyTwoRedirectUri: () => required('FORTYTWO_REDIRECT_URI'),
