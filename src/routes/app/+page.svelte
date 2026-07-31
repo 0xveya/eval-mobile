@@ -14,4 +14,6 @@
 	<p>Loading teams…</p>
 {/if}
 
+<a href="/app/open">Open slot</a>
+
 <a href={resolve('/logout')}>Log out</a>

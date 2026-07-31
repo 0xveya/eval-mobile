@@ -15,7 +15,7 @@ export const GET: RequestHandler = async ({ url }) => {
 		client_id: env.FORTYTWO_CLIENT_ID,
 		redirect_uri: env.FORTYTWO_REDIRECT_URI,
 		response_type: 'code',
-		scope: 'public',
+		scope: 'public projects',
 		state
 	}).toString();
 

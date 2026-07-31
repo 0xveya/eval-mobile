@@ -2,7 +2,7 @@ import { getRequestEvent, query } from '$app/server';
 import { error } from '@sveltejs/kit';
 
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
-import type { FortyTwoError } from '$lib/server/fourtytwo/errors';
+import { throwApiError } from '$lib/utils/utils';
 import type { Team } from '$lib/server/fourtytwo/schemas';
 
 type FortyTwoClient = ReturnType<typeof createFortyTwoClient>;
@@ -66,25 +66,4 @@ function isUnlocked(team: Team): boolean {
 
 function isNotValidated(team: Team): boolean {
 	return team['validated?'] !== true;
-}
-
-function throwApiError(apiError: FortyTwoError): never {
-	switch (apiError.type) {
-		case 'network':
-			console.error(apiError.cause);
-			return error(502, 'Could not reach the 42 API');
-
-		case 'http':
-			console.error(apiError.status, apiError.body);
-
-			if (apiError.status === 401) {
-				return error(401, 'Your 42 session has expired');
-			}
-
-			return error(502, `42 API returned ${apiError.status}`);
-
-		case 'invalid-response':
-			console.error(apiError.issues);
-			return error(502, '42 returned an unexpected response');
-	}
 }

@@ -54,3 +54,19 @@ export const teamSchema = v.looseObject({
 export const teamsSchema = v.array(teamSchema);
 
 export type Team = v.InferOutput<typeof teamSchema>;
+
+export const slotSchema = v.looseObject({
+	id: v.number(),
+	begin_at: v.string(),
+	end_at: v.string(),
+	scale_team: v.nullable(v.unknown()),
+	user: v.looseObject({
+		id: v.number(),
+		login: v.string()
+	})
+});
+
+export const slotsSchema = v.array(slotSchema);
+
+export type Slot = v.InferOutput<typeof slotSchema>;
+export type Slots = v.InferOutput<typeof slotsSchema>;
