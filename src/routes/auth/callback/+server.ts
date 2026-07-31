@@ -1,27 +1,17 @@
 import { env } from '$env/dynamic/private';
 import { getValkey } from '$lib/server/valkey';
+import { exchangeCode } from '$lib/server/fourtytwo/oauth';
+import { FortyTwoClient } from '$lib/server/fourtytwo/client';
 import { error, redirect } from '@sveltejs/kit';
-import type { RequestHandler } from '../../callback/$types';
 
-type TokenResponse = {
-	access_token: string;
-	token_type: string;
-	expires_in: number;
-	refresh_token?: string;
-	scope?: string;
-	created_at?: number;
-};
-
-type MeResponse = {
-	id: number;
-	login: string;
-};
+import type { FortyTwoError } from '$lib/server/fourtytwo/errors';
+import type { RequestHandler } from './$types';
 
 type OAuthState = {
 	returnTo: string;
 };
 
-export const GET: RequestHandler = async ({ url, cookies, fetch }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
 	const code = url.searchParams.get('code');
 	const state = url.searchParams.get('state');
 
@@ -36,49 +26,27 @@ export const GET: RequestHandler = async ({ url, cookies, fetch }) => {
 		error(400, 'OAuth state is invalid or expired');
 	}
 
-	let oauthState: OAuthState;
+	const oauthState = parseOAuthState(stateValue);
 
-	try {
-		oauthState = JSON.parse(stateValue) as OAuthState;
-	} catch {
-		error(400, 'Stored OAuth state is invalid');
-	}
-
-	const tokenResponse = await fetch('https://api.intra.42.fr/oauth/token', {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/x-www-form-urlencoded'
-		},
-		body: new URLSearchParams({
-			grant_type: 'authorization_code',
-			client_id: env.FORTYTWO_CLIENT_ID,
-			client_secret: env.FORTYTWO_CLIENT_SECRET,
-			code,
-			redirect_uri: env.FORTYTWO_REDIRECT_URI
-		})
+	const tokenResult = await exchangeCode({
+		clientId: env.FORTYTWO_CLIENT_ID,
+		clientSecret: env.FORTYTWO_CLIENT_SECRET,
+		redirectUri: env.FORTYTWO_REDIRECT_URI,
+		code
 	});
 
-	if (!tokenResponse.ok) {
-		const body = await tokenResponse.text();
-		console.error('42 token exchange failed', body);
-		error(502, 'Could not complete 42 login');
-	}
+	const token = tokenResult.match(
+		(value) => value,
+		(apiError) => throwOAuthError(apiError)
+	);
 
-	const token = (await tokenResponse.json()) as TokenResponse;
+	const client = new FortyTwoClient(token.access_token);
+	const meResult = await client.getMe();
 
-	const meResponse = await fetch('https://api.intra.42.fr/v2/me', {
-		headers: {
-			authorization: `Bearer ${token.access_token}`,
-			accept: 'application/json'
-		}
-	});
-
-	if (!meResponse.ok) {
-		console.error('42 /me request failed', await meResponse.text());
-		error(502, 'Could not retrieve your 42 profile');
-	}
-
-	const me = (await meResponse.json()) as MeResponse;
+	const me = meResult.match(
+		(value) => value,
+		(apiError) => throwOAuthError(apiError)
+	);
 
 	const sessionId = crypto.randomUUID();
 	const expiresAt = Date.now() + token.expires_in * 1000;
@@ -91,9 +59,7 @@ export const GET: RequestHandler = async ({ url, cookies, fetch }) => {
 			accessToken: token.access_token,
 			expiresAt
 		}),
-		{
-			EX: token.expires_in
-		}
+		{ EX: token.expires_in }
 	);
 
 	cookies.set('session_id', sessionId, {
@@ -106,6 +72,39 @@ export const GET: RequestHandler = async ({ url, cookies, fetch }) => {
 
 	redirect(303, safeReturnPath(oauthState.returnTo));
 };
+
+function parseOAuthState(value: string): OAuthState {
+	try {
+		const parsed = JSON.parse(value) as unknown;
+
+		if (
+			typeof parsed !== 'object' ||
+			parsed === null ||
+			!('returnTo' in parsed) ||
+			typeof parsed.returnTo !== 'string'
+		) {
+			error(400, 'Stored OAuth state is invalid');
+		}
+
+		return { returnTo: parsed.returnTo };
+	} catch {
+		error(400, 'Stored OAuth state is invalid');
+	}
+}
+
+function throwOAuthError(apiError: FortyTwoError): never {
+	switch (apiError.type) {
+		case 'network':
+			console.error('42 network error', apiError.cause);
+			error(502, 'Could not reach 42');
+		case 'http':
+			console.error('42 HTTP error', apiError.status, apiError.body);
+			error(502, '42 rejected the OAuth request');
+		case 'invalid-response':
+			console.error('Invalid 42 response', apiError.issues);
+			error(502, '42 returned an invalid response');
+	}
+}
 
 function safeReturnPath(path: string): string {
 	return path.startsWith('/') && !path.startsWith('//') ? path : '/app';
