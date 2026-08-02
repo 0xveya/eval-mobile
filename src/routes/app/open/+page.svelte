@@ -3,8 +3,9 @@
 	import { env } from '$env/dynamic/public';
 	import {
 		createOpenSlot,
-		deleteOpenSlot,
+		deleteOpenSlots,
 		getOpenSlots,
+		getOpenSlotsFresh,
 		getSlotSettings
 	} from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
@@ -87,7 +88,7 @@
 				beginAt: start.toISOString(),
 				endAt: end.toISOString()
 			});
-			existingSlots = slots.map(fromRemoteSlot);
+			existingSlots = fromRemoteSlots(slots);
 			remoteSlotCount = existingSlots.length;
 			clearDraft();
 		} catch {
@@ -97,11 +98,11 @@
 
 	async function removeExistingSlot(slot: CalendarSlot): Promise<boolean> {
 		if (useMockData) return true;
-		const remoteId = Number(slot.id.replace(/^remote-/, ''));
-		if (!Number.isInteger(remoteId)) return false;
+		const remoteIds = slot.remoteIds ?? [Number(slot.id.replace(/^remote-/, ''))];
+		if (remoteIds.length === 0 || remoteIds.some((id) => !Number.isInteger(id))) return false;
 		try {
-			const slots = await deleteOpenSlot({ id: remoteId });
-			existingSlots = slots.map(fromRemoteSlot);
+			const slots = await deleteOpenSlots({ ids: remoteIds });
+			existingSlots = fromRemoteSlots(slots);
 			remoteSlotCount = existingSlots.length;
 			return false;
 		} catch {
@@ -125,7 +126,30 @@
 		};
 	}
 
-	function fromRemoteSlot(slot: Awaited<ReturnType<typeof getOpenSlots>>[number]): CalendarSlot {
+	type RemoteSlot = Awaited<ReturnType<typeof getOpenSlots>>[number];
+
+	function fromRemoteSlots(slots: RemoteSlot[]): CalendarSlot[] {
+		const groups: CalendarSlot[] = [];
+		for (const slot of slots.toSorted((a, b) => Date.parse(a.begin_at) - Date.parse(b.begin_at))) {
+			const mapped = fromRemoteSlot(slot);
+			const previous = groups.at(-1);
+			if (
+				mapped.status === 'open' &&
+				previous?.status === 'open' &&
+				dateAndMinutes(previous.endDate ?? previous.date, previous.endMinutes).getTime() ===
+					Date.parse(slot.begin_at)
+			) {
+				previous.endDate = mapped.endDate;
+				previous.endMinutes = mapped.endMinutes;
+				previous.remoteIds = [...(previous.remoteIds ?? []), slot.id];
+				continue;
+			}
+			groups.push(mapped);
+		}
+		return groups;
+	}
+
+	function fromRemoteSlot(slot: RemoteSlot): CalendarSlot {
 		const start = new Date(slot.begin_at);
 		const end = new Date(slot.end_at);
 		const booked = slot.scale_team !== null;
@@ -137,7 +161,8 @@
 			endMinutes: end.getHours() * 60 + end.getMinutes(),
 			label: booked ? 'Booked' : 'Open',
 			status: booked ? 'booked' : 'open',
-			remote: true
+			remote: true,
+			remoteIds: [slot.id]
 		};
 	}
 
@@ -166,9 +191,9 @@
 			}
 			mockStorageReady = true;
 		} else {
-			void getOpenSlots()
+			void getOpenSlotsFresh()
 				.then((remoteSlots) => {
-					const fetched = remoteSlots.map(fromRemoteSlot);
+					const fetched = fromRemoteSlots(remoteSlots);
 					remoteSlotCount = fetched.length;
 					existingSlots = fetched;
 				})

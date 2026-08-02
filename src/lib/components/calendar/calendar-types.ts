@@ -9,6 +9,7 @@ export type CalendarSlot = {
 	label: string;
 	status?: 'open' | 'booked';
 	remote?: boolean;
+	remoteIds?: number[];
 };
 
 export type DraftSlot = Omit<CalendarSlot, 'id' | 'label'>;

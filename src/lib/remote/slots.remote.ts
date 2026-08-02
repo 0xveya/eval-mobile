@@ -32,6 +32,12 @@ export const getOpenSlots = query(async () => {
 	});
 });
 
+export const getOpenSlotsFresh = query(async () => {
+	const session = requireSession();
+	const client = createFortyTwoClient(session.accessToken);
+	return refreshOpenSlots(client, session.userId);
+});
+
 export const createOpenSlot = command(
 	v.object({ beginAt: v.string(), endAt: v.string() }),
 	async ({ beginAt, endAt }) => {
@@ -45,15 +51,20 @@ export const createOpenSlot = command(
 	}
 );
 
-export const deleteOpenSlot = command(v.object({ id: v.number() }), async ({ id }) => {
-	const session = requireSession();
-	const client = createFortyTwoClient(session.accessToken);
-	(await client.slots.remove(id)).match(
-		() => undefined,
-		(apiError) => throwApiError(apiError)
-	);
-	return refreshOpenSlots(client, session.userId);
-});
+export const deleteOpenSlots = command(
+	v.object({ ids: v.pipe(v.array(v.number()), v.minLength(1)) }),
+	async ({ ids }) => {
+		const session = requireSession();
+		const client = createFortyTwoClient(session.accessToken);
+		for (const id of ids) {
+			(await client.slots.remove(id)).match(
+				() => undefined,
+				(apiError) => throwApiError(apiError)
+			);
+		}
+		return refreshOpenSlots(client, session.userId);
+	}
+);
 
 function requireSession() {
 	const { locals } = getRequestEvent();
