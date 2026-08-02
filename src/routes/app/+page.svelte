@@ -18,6 +18,7 @@
 	]);
 	let cancelId = $state<string | null>(null);
 	const intraUrl = 'https://projects.intra.42.fr/';
+	const cancelTarget = $derived(evaluations.find((evaluation) => evaluation.id === cancelId));
 
 	const projects = [
 		{ id: 'libft', name: 'Libft' },
@@ -44,12 +45,20 @@
 			{#each evaluations as evaluation (evaluation.id)}
 				<li class:incoming={evaluation.direction === 'incoming'}>
 					<span class="marker" aria-hidden="true"></span>
-					<div>
-						<strong>{evaluation.project}</strong>
+					<div class="event-copy">
+						<a
+							class="project-link"
+							href="https://projects.intra.42.fr/projects/{evaluation.project}"
+							target="_blank"
+							rel="noreferrer">{evaluation.project}</a
+						>
 						<small>
-							{evaluation.direction === 'outgoing'
-								? `You evaluate ${evaluation.person}`
-								: `${evaluation.person} evaluates you`}
+							{evaluation.direction === 'outgoing' ? 'You evaluate ' : ''}
+							<a
+								href="https://profile.intra.42.fr/users/{evaluation.person}"
+								target="_blank"
+								rel="noreferrer">{evaluation.person}</a
+							>{evaluation.direction === 'incoming' ? ' evaluates you' : ''}
 						</small>
 					</div>
 					<div class="event-actions">
@@ -58,7 +67,7 @@
 							<a href={intraUrl} target="_blank" rel="noreferrer">Open Intra ↗</a>
 						{/if}
 					</div>
-					{#if evaluation.direction === 'incoming' && evaluation.minutes <= 4}
+					{#if evaluation.minutes <= 4}
 						<button class="cancel" type="button" onclick={() => (cancelId = evaluation.id)}
 							>Cancel</button
 						>
@@ -88,9 +97,15 @@
 
 {#if cancelId}
 	<ConfirmDialog
-		title="Cancel evaluation?"
-		message="This removes the scheduled evaluation."
-		confirmLabel="Cancel evaluation"
+		title={cancelTarget?.direction === 'incoming'
+			? 'Find another evaluator?'
+			: 'Cancel evaluation?'}
+		message={cancelTarget?.direction === 'incoming'
+			? 'This cancels with this evaluator so someone else can take the evaluation.'
+			: 'This removes the evaluation you were scheduled to give.'}
+		confirmLabel={cancelTarget?.direction === 'incoming'
+			? 'Find someone else'
+			: 'Cancel evaluation'}
 		onconfirm={cancelEvaluation}
 		oncancel={() => (cancelId = null)}
 	/>
@@ -156,12 +171,21 @@
 	.incoming .marker {
 		background: var(--iris);
 	}
-	.evaluation-list strong,
 	.evaluation-list small {
 		display: block;
 	}
-	.evaluation-list strong {
+	.project-link {
 		font-size: 0.85rem;
+	}
+	.project-link,
+	small a {
+		color: var(--text);
+		font-weight: 750;
+		text-decoration-color: var(--border);
+		text-underline-offset: 0.15rem;
+	}
+	small a {
+		color: var(--iris);
 	}
 	small {
 		margin-top: 0.12rem;
@@ -226,7 +250,7 @@
 		z-index: 80;
 		display: flex;
 		justify-content: center;
-		padding: 0.5rem 3.5rem 0.5rem 0.5rem;
+		padding: 0.5rem 3.5rem;
 		border-top: 1px solid var(--border);
 		background: var(--surface);
 	}
@@ -235,10 +259,10 @@
 		place-items: center;
 		min-height: 2.5rem;
 		padding: 0 1rem;
-		border: 1px solid var(--border);
+		border: 1px solid var(--iris);
 		border-radius: 0.45rem;
-		background: var(--base);
-		color: var(--text);
+		background: var(--iris);
+		color: var(--surface);
 		font-size: 0.78rem;
 		font-weight: 750;
 		text-decoration: none;
