@@ -7,6 +7,26 @@
 </script>
 
 <svelte:head>
+	<title>42 Slots</title>
+	<meta
+		name="description"
+		content="Open your 42 Intra evaluation slots on mobile—without suffering."
+	/>
+	<meta name="theme-color" content="#1e1e2e" />
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content="42 Slots" />
+	<meta property="og:title" content="42 Slots" />
+	<meta
+		property="og:description"
+		content="Open your 42 Intra evaluation slots on mobile—without suffering."
+	/>
+	<meta property="og:url" content="https://slots.saygex.xyz" />
+	<meta name="twitter:card" content="summary" />
+	<meta name="twitter:title" content="42 Slots" />
+	<meta
+		name="twitter:description"
+		content="Open your 42 Intra evaluation slots on mobile—without suffering."
+	/>
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
