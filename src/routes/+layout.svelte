@@ -1,5 +1,6 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
+	import { page } from '$app/state';
 	import AppDock from '$lib/components/AppDock.svelte';
 
 	let { children } = $props();
@@ -10,7 +11,7 @@
 </svelte:head>
 
 {@render children()}
-<AppDock />
+{#if page.url.pathname.startsWith('/app')}<AppDock />{/if}
 
 <style>
 	:global(:root) {

@@ -17,6 +17,8 @@ Thumbs.db
 .env.*
 !.env.example
 !.env.test
+/deploy-vps.sh
+/compose.vps.yaml
 
 # Vite
 vite.config.js.timestamp-*
