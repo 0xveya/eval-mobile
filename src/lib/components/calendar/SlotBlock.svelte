@@ -81,22 +81,28 @@
 		align-content: start;
 		min-height: 1.8rem;
 		padding: 0.42rem 0.5rem;
-		overflow: hidden;
-		border: 1px solid #26736b;
+		overflow: visible;
+		border: 1px solid var(--open-border);
 		border-radius: 0.25rem;
-		background: #cce8e4;
-		color: #173a36;
+		background: var(--open-bg);
+		color: var(--open-text);
 		cursor: grab;
 		touch-action: none;
+	}
+	.slot::before {
+		content: '';
+		position: absolute;
+		inset: -0.3rem;
+		z-index: 0;
 	}
 	.slot:active {
 		cursor: grabbing;
 	}
 	.slot.draft {
-		border-color: #d4552d;
+		border-color: var(--draft-border);
 		border-style: dashed;
-		background: #ffe1d2;
-		color: #662612;
+		background: var(--draft-bg);
+		color: var(--draft-text);
 	}
 	.slot.past {
 		border-color: #aaa69d;
@@ -105,9 +111,9 @@
 		opacity: 0.58;
 	}
 	.slot.locked {
-		border-color: #a82020;
-		background: #f4caca;
-		color: #681414;
+		border-color: var(--booked-border);
+		background: var(--booked-bg);
+		color: var(--booked-text);
 		cursor: default;
 	}
 	strong {
@@ -123,7 +129,7 @@
 		left: 0.3rem;
 		right: 0.3rem;
 		z-index: 2;
-		height: 0.55rem;
+		height: 1.2rem;
 		padding: 0;
 		border: 0;
 		background: transparent;
@@ -140,10 +146,10 @@
 		opacity: 0.7;
 	}
 	.top {
-		top: 0;
+		top: -0.45rem;
 	}
 	.bottom {
-		bottom: 0;
+		bottom: -0.45rem;
 	}
 	.remove {
 		position: absolute;
