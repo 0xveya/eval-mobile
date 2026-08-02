@@ -8,6 +8,7 @@
 		draft = false,
 		past = false,
 		locked = false,
+		boundaryGap = false,
 		showStartHandle = true,
 		showEndHandle = true,
 		onmove,
@@ -19,6 +20,7 @@
 		draft?: boolean;
 		past?: boolean;
 		locked?: boolean;
+		boundaryGap?: boolean;
 		showStartHandle?: boolean;
 		showEndHandle?: boolean;
 		onmove: (event: PointerEvent, element: HTMLElement) => void;
@@ -47,7 +49,7 @@
 	data-slot-id={id}
 	role="group"
 	aria-label={`${label}, draggable slot`}
-	style={`top:${slotTop(slot.startMinutes)}%;height:${slotHeight(slot.startMinutes, slot.endMinutes)}%`}
+	style={`top:calc(${slotTop(slot.startMinutes)}% + ${boundaryGap ? 4 : 0}px);height:calc(${slotHeight(slot.startMinutes, slot.endMinutes)}% - ${boundaryGap ? 4 : 0}px)`}
 	onpointerdown={(event) => handleMoveDown(event, event.currentTarget)}
 >
 	{#if !locked && showStartHandle}<button

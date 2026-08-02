@@ -30,7 +30,9 @@
 		onedgenavigate,
 		onzoom,
 		onremoveslot,
-		onupdateslot
+		onupdateslot,
+		onstartedit,
+		editingSlotId = null
 	}: {
 		days: CalendarDay[];
 		slots: CalendarSlot[];
@@ -43,6 +45,8 @@
 		onzoom: (direction: -1 | 1) => void;
 		onremoveslot: (slot: CalendarSlot) => Promise<boolean>;
 		onupdateslot: (before: CalendarSlot, after: CalendarSlot) => Promise<void>;
+		onstartedit: (slot: CalendarSlot) => void;
+		editingSlotId?: string | null;
 	} = $props();
 
 	let interaction = $state<Interaction | null>(null);
@@ -139,14 +143,32 @@
 		}
 		const date = day.dataset.date;
 		if (!date) return null;
+		const maximumMinutes =
+			interaction?.type === 'resize' && interaction.edge === 'end'
+				? MINUTES_PER_DAY
+				: MINUTES_PER_DAY - snapInterval;
 		gesture = {
 			...gesture,
 			currentDate: date,
-			currentMinutes: minutesFromPointer(event, day, snapInterval),
+			currentMinutes: minutesFromPointer(event, day, snapInterval, maximumMinutes),
 			fingerX: event.clientX,
-			fingerY: event.clientY
+			fingerY: event.clientY,
+			constrained: false
 		};
 		return day;
+	}
+
+	function clampGestureTo(date: Date) {
+		if (!gesture) return;
+		const minutes = date.getHours() * 60 + date.getMinutes();
+		const constrained =
+			gesture.currentDate !== toDateKey(date) || gesture.currentMinutes !== minutes;
+		gesture = {
+			...gesture,
+			currentDate: toDateKey(date),
+			currentMinutes: minutes,
+			constrained
+		};
 	}
 
 	function handleDayPointerDown(event: PointerEvent, date: string, day: HTMLElement) {
@@ -161,7 +183,10 @@
 	}
 
 	function beginCreate(event: PointerEvent, date: string, day: HTMLElement) {
-		const anchorMinutes = minutesFromPointer(event, day, snapInterval);
+		const anchorMinutes = Math.min(
+			minutesFromPointer(event, day, snapInterval),
+			MINUTES_PER_DAY - minimumDuration
+		);
 		const start = dateAndMinutes(date, anchorMinutes);
 		const candidate = candidateFromRange(
 			start,
@@ -226,56 +251,66 @@
 			const pointerMinutes = minutesFromPointer(event, targetDay, snapInterval);
 			const anchor = dateAndMinutes(interaction.anchorDate, interaction.anchorMinutes);
 			const pointer = dateAndMinutes(date, pointerMinutes);
-			const start = new Date(
-				Math.max(Math.min(anchor.getTime(), pointer.getTime()), earliestLegalStart().getTime())
+			const minimum = minimumDuration * 60_000;
+			const interval = snapInterval * 60_000;
+			const draggingUp = pointer < anchor;
+			let start = new Date(draggingUp ? pointer.getTime() : anchor.getTime());
+			let end = new Date(
+				draggingUp
+					? Math.max(anchor.getTime() + interval, pointer.getTime() + minimum)
+					: Math.max(pointer.getTime() + interval, anchor.getTime() + minimum)
 			);
-			const end = new Date(
-				Math.max(
-					anchor.getTime() + minimumDuration * 60_000,
-					pointer.getTime() + snapInterval * 60_000
-				)
-			);
+			const earliest = earliestLegalStart().getTime();
+			if (start.getTime() < earliest) start = new Date(earliest);
+			if (end.getTime() < start.getTime() + minimum) end = new Date(start.getTime() + minimum);
 			applyCandidate('draft', candidateFromRange(start, end));
 			return;
 		}
 
 		if (interaction.type === 'move') {
 			const pointer = dateAndMinutes(date, minutesFromPointer(event, targetDay, snapInterval));
+			const dayEnd = dateAndMinutes(date, MINUTES_PER_DAY).getTime();
+			const earliest = earliestLegalStart().getTime();
+			const latest = dayEnd - interaction.durationMinutes * 60_000;
 			const start = new Date(
-				Math.max(
-					pointer.getTime() - interaction.offsetMinutes * 60_000,
-					earliestLegalStart().getTime()
+				Math.min(
+					Math.max(pointer.getTime() - interaction.offsetMinutes * 60_000, earliest),
+					Math.max(earliest, latest)
 				)
 			);
 			const end = new Date(start.getTime() + interaction.durationMinutes * 60_000);
+			clampGestureTo(new Date(start.getTime() + interaction.offsetMinutes * 60_000));
 			applyCandidate(interaction.slotId, candidateFromRange(start, end));
 			return;
 		}
 
 		const slot = getInteractionSlot(interaction.slotId);
 		if (!slot) return;
-		const pointer = dateAndMinutes(date, minutesFromPointer(event, targetDay, snapInterval));
+		const pointer = dateAndMinutes(
+			date,
+			minutesFromPointer(
+				event,
+				targetDay,
+				snapInterval,
+				interaction.edge === 'end' ? MINUTES_PER_DAY : MINUTES_PER_DAY - snapInterval
+			)
+		);
 		const minimum = minimumDuration * 60_000;
 		const start = rangeStart(slot);
 		const end = rangeEnd(slot);
 		if (interaction.edge === 'start') {
-			applyCandidate(
-				interaction.slotId,
-				candidateFromRange(
-					new Date(
-						Math.max(
-							earliestLegalStart().getTime(),
-							Math.min(pointer.getTime(), end.getTime() - minimum)
-						)
-					),
-					end
+			const resizedStart = new Date(
+				Math.max(
+					earliestLegalStart().getTime(),
+					Math.min(pointer.getTime(), end.getTime() - minimum)
 				)
 			);
+			if (resizedStart.getTime() !== pointer.getTime()) clampGestureTo(resizedStart);
+			applyCandidate(interaction.slotId, candidateFromRange(resizedStart, end));
 		} else {
-			applyCandidate(
-				interaction.slotId,
-				candidateFromRange(start, new Date(Math.max(pointer.getTime(), start.getTime() + minimum)))
-			);
+			const resizedEnd = new Date(Math.max(pointer.getTime(), start.getTime() + minimum));
+			if (resizedEnd.getTime() !== pointer.getTime()) clampGestureTo(resizedEnd);
+			applyCandidate(interaction.slotId, candidateFromRange(start, resizedEnd));
 		}
 	}
 
@@ -341,7 +376,7 @@
 		pointerStartX = event.clientX;
 		pointerStartY = event.clientY;
 		interactionMoved = false;
-		interactionOriginal = 'id' in slot ? structuredClone(slot) : null;
+		interactionOriginal = 'id' in slot ? snapshotSlot(slot) : null;
 		const day = element.parentElement as HTMLElement;
 		const pointerMinutes = minutesFromPointer(event, day, snapInterval);
 		const pointerDate = dateAndMinutes(day.dataset.date ?? slot.date, pointerMinutes);
@@ -370,6 +405,32 @@
 		calendarElement.setPointerCapture(event.pointerId);
 	}
 
+	function beginEditMove(event: PointerEvent, slot: CalendarSlot, element: HTMLElement) {
+		onstartedit(slot);
+		beginMove(event, draftFromSlot(slot), 'draft', element);
+	}
+
+	function beginEditResize(event: PointerEvent, slot: CalendarSlot, edge: 'start' | 'end') {
+		onstartedit(slot);
+		beginResize(event, draftFromSlot(slot), 'draft', edge);
+	}
+
+	function draftFromSlot(slot: CalendarSlot): DraftSlot {
+		return {
+			date: slot.date,
+			endDate: slot.endDate,
+			startMinutes: slot.startMinutes,
+			endMinutes: slot.endMinutes,
+			status: slot.status,
+			remote: slot.remote,
+			remoteIds: slot.remoteIds ? [...slot.remoteIds] : undefined
+		};
+	}
+
+	function snapshotSlot(slot: CalendarSlot): CalendarSlot {
+		return { id: slot.id, label: slot.label, ...draftFromSlot(slot) };
+	}
+
 	function beginResize(
 		event: PointerEvent,
 		slot: CalendarSlot | DraftSlot,
@@ -381,7 +442,7 @@
 		pointerStartX = event.clientX;
 		pointerStartY = event.clientY;
 		interactionMoved = false;
-		interactionOriginal = 'id' in slot ? structuredClone(slot) : null;
+		interactionOriginal = 'id' in slot ? snapshotSlot(slot) : null;
 		interaction = { type: 'resize', pointerId: event.pointerId, slotId: id, edge };
 		const edgeDate = edge === 'start' ? slot.date : (slot.endDate ?? slot.date);
 		const minutes = edge === 'start' ? slot.startMinutes : slot.endMinutes;
@@ -407,7 +468,7 @@
 	}
 
 	function applyCandidate(id: string, candidate: DraftSlot) {
-		const problem = validate(candidate, id === 'draft' ? undefined : id);
+		const problem = validate(candidate, id === 'draft' ? (editingSlotId ?? undefined) : id);
 		if (problem) {
 			if (interaction?.type === 'move' || interaction?.type === 'resize') return;
 			return onvalidation(problem);
@@ -502,9 +563,14 @@
 	function isSlotPast(slot: CalendarSlot) {
 		return rangeEnd(slot).getTime() < Date.now();
 	}
-	function currentTimeTop(date: string) {
+	function startsAtLegalBoundary(slot: DraftSlot | CalendarSlot) {
+		return rangeStart(slot).getTime() === earliestLegalStart().getTime();
+	}
+	function earliestStartTop(date: string) {
 		const now = new Date();
-		return date === toDateKey(now) ? slotTop(now.getHours() * 60 + now.getMinutes()) : null;
+		if (date !== toDateKey(now)) return null;
+		const earliest = earliestLegalStart();
+		return slotTop(earliest.getHours() * 60 + earliest.getMinutes());
 	}
 	function formatTimeLabel(minutes: number) {
 		const hour = Math.floor(minutes / 60);
@@ -551,31 +617,34 @@
 					class:minor-line={minutes % 60 !== 0}
 					style={`top:${slotTop(minutes)}%`}
 				></div>{/each}
-			{#if day.date === toDateKey(new Date())}<div
+			{#if earliestStartTop(day.date) !== null}<div
 					class="past-overlay"
-					style={`height:${slotTop(new Date().getHours() * 60 + new Date().getMinutes())}%`}
+					style={`height:${earliestStartTop(day.date)}%`}
 				></div>{/if}
 			{#each (slotsByDate.get(day.date) ?? []).toSorted((a, b) => a.startMinutes - b.startMinutes) as segment (`${segment.slot.id}-${day.date}`)}
-				<SlotBlock
-					slot={{
-						...segment.slot,
-						date: day.date,
-						startMinutes: segment.startMinutes,
-						endMinutes: segment.endMinutes
-					}}
-					id={segment.slot.id}
-					past={isSlotPast(segment.slot)}
-					locked={segment.slot.status === 'booked'}
-					showStartHandle={segment.isStart}
-					showEndHandle={segment.isEnd}
-					onmove={(event, element) => beginMove(event, segment.slot, segment.slot.id, element)}
-					onresize={(event, edge) => beginResize(event, segment.slot, segment.slot.id, edge)}
-					onremove={() => removeSlot(segment.slot.id)}
-				/>
+				{#if segment.slot.id !== editingSlotId}
+					<SlotBlock
+						slot={{
+							...segment.slot,
+							date: day.date,
+							startMinutes: segment.startMinutes,
+							endMinutes: segment.endMinutes
+						}}
+						id={segment.slot.id}
+						past={isSlotPast(segment.slot)}
+						locked={segment.slot.status === 'booked'}
+						boundaryGap={segment.isStart && startsAtLegalBoundary(segment.slot)}
+						showStartHandle={segment.isStart}
+						showEndHandle={segment.isEnd}
+						onmove={(event, element) => beginEditMove(event, segment.slot, element)}
+						onresize={(event, edge) => beginEditResize(event, segment.slot, edge)}
+						onremove={() => removeSlot(segment.slot.id)}
+					/>
+				{/if}
 			{/each}
-			{#if currentTimeTop(day.date) !== null}<div
+			{#if earliestStartTop(day.date) !== null}<div
 					class="current-time"
-					style={`top:${currentTimeTop(day.date)}%`}
+					style={`top:${earliestStartTop(day.date)}%`}
 				></div>{/if}
 			{#if draft}
 				{@const draftSegment = draftSegmentForDay(day.date)}
@@ -588,6 +657,7 @@
 						}}
 						id="draft"
 						draft
+						boundaryGap={draftSegment.isStart && startsAtLegalBoundary(draft)}
 						showStartHandle={draftSegment.isStart}
 						showEndHandle={draftSegment.isEnd}
 						onmove={(event, element) => beginMove(event, draft!, 'draft', element)}
@@ -599,7 +669,7 @@
 	{/each}
 </div>
 
-{#if gesture && gesture.pointerType !== 'mouse' && (interaction?.type === 'create' || interactionMoved)}
+{#if gesture && !gesture.constrained && gesture.pointerType !== 'mouse' && (interaction?.type === 'create' || interactionMoved)}
 	<TimeLoupe {gesture} />
 {/if}
 {#if pendingCancellationId}

@@ -13,7 +13,7 @@
 Use `PUBLIC_USE_MOCK_DATA=true` for local fixtures, then run:
 
 ```sh
-docker compose up -d valkey
+docker compose -f compose.dev.yaml up -d
 bun install
 bun run dev
 ```

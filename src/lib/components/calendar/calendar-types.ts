@@ -54,4 +54,5 @@ export type Gesture = {
 	fingerX: number;
 	fingerY: number;
 	slotId?: string;
+	constrained?: boolean;
 };

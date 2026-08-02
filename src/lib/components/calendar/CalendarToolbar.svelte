@@ -11,6 +11,7 @@
 		ontoday,
 		onnext,
 		draft,
+		editing = false,
 		onconfirm,
 		oncancel
 	}: {
@@ -21,6 +22,7 @@
 		ontoday: () => void;
 		onnext: () => void;
 		draft: DraftSlot | null;
+		editing?: boolean;
 		onconfirm: () => void;
 		oncancel: () => void;
 	} = $props();
@@ -49,7 +51,7 @@
 		<div class="draft-control">
 			<span>{formatMinutes(draft.startMinutes)}–{formatMinutes(draft.endMinutes)}</span>
 			<button type="button" onclick={oncancel}>Cancel</button>
-			<button type="button" class="confirm" onclick={onconfirm}>Add</button>
+			<button type="button" class="confirm" onclick={onconfirm}>{editing ? 'Edit' : 'Add'}</button>
 		</div>
 	{/if}
 

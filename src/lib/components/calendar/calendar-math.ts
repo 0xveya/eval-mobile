@@ -54,11 +54,16 @@ export function formatMinutes(minutes: number) {
 	return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
 }
 
-export function minutesFromPointer(event: PointerEvent, element: HTMLElement, interval: number) {
+export function minutesFromPointer(
+	event: PointerEvent,
+	element: HTMLElement,
+	interval: number,
+	maximum = MINUTES_PER_DAY - interval
+) {
 	const rect = element.getBoundingClientRect();
 	const y = clamp(event.clientY - rect.top, 0, rect.height);
 	const rawMinutes = (y / rect.height) * MINUTES_PER_DAY;
-	return clamp(snapMinutes(rawMinutes, interval), 0, MINUTES_PER_DAY - interval);
+	return clamp(snapMinutes(rawMinutes, interval), 0, maximum);
 }
 
 export function startOfDay(date: Date) {

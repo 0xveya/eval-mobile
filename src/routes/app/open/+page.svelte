@@ -29,8 +29,8 @@
 	let pixelsPerHour = $state(55);
 	let startDate = $state(startOfDay(new Date()));
 	let draft = $state<DraftSlot | null>(null);
+	let editingSlot = $state<CalendarSlot | null>(null);
 	let validationMessage = $state('');
-	let remoteSlotCount = $state(0);
 	let showHelp = $state(false);
 	let mobileHelp = $state(true);
 	let mockStorageReady = $state(false);
@@ -69,6 +69,31 @@
 	}
 	function clearDraft() {
 		draft = null;
+		editingSlot = null;
+		validationMessage = '';
+	}
+	function startEditingSlot(slot: CalendarSlot) {
+		if (slot.status === 'booked') return;
+		editingSlot = {
+			id: slot.id,
+			date: slot.date,
+			endDate: slot.endDate,
+			startMinutes: slot.startMinutes,
+			endMinutes: slot.endMinutes,
+			label: slot.label,
+			status: slot.status,
+			remote: slot.remote,
+			remoteIds: slot.remoteIds ? [...slot.remoteIds] : undefined
+		};
+		draft = {
+			date: slot.date,
+			endDate: slot.endDate,
+			startMinutes: slot.startMinutes,
+			endMinutes: slot.endMinutes,
+			status: slot.status,
+			remote: slot.remote,
+			remoteIds: slot.remoteIds
+		};
 		validationMessage = '';
 	}
 	async function confirmDraft() {
@@ -77,6 +102,14 @@
 		const end = dateAndMinutes(draft.endDate ?? draft.date, draft.endMinutes);
 		if ((end.getTime() - start.getTime()) / 60_000 < minimumDuration) {
 			validationMessage = `Your campus requires slots of at least ${minimumDuration} minutes.`;
+			return;
+		}
+		if (editingSlot) {
+			const before = editingSlot;
+			const after: CalendarSlot = { ...before, ...draft };
+			existingSlots = existingSlots.map((slot) => (slot.id === before.id ? after : slot));
+			clearDraft();
+			if (!useMockData) await updateExistingSlot(before, after);
 			return;
 		}
 		if (useMockData) {
@@ -90,10 +123,9 @@
 				endAt: end.toISOString()
 			});
 			existingSlots = fromRemoteSlots(slots);
-			remoteSlotCount = existingSlots.length;
 			clearDraft();
-		} catch {
-			validationMessage = '42 could not open that slot.';
+		} catch (error) {
+			validationMessage = apiErrorMessage('open that slot', error);
 		}
 	}
 
@@ -104,23 +136,20 @@
 		// Closing a grouped range can require several 42 requests. Remove it from
 		// the calendar immediately, then reconcile with the server response.
 		existingSlots = existingSlots.filter((item) => item.id !== slot.id);
-		remoteSlotCount = existingSlots.length;
 		try {
 			const { slots, failedIds } = await deleteOpenSlots({ ids: remoteIds });
 			existingSlots = fromRemoteSlots(slots);
-			remoteSlotCount = existingSlots.length;
 			if (failedIds.length > 0) {
 				validationMessage = 'Some parts of that slot could not be closed. Please try again.';
 			}
 			return false;
-		} catch {
+		} catch (error) {
 			try {
 				existingSlots = fromRemoteSlots(await getOpenSlotsFresh());
-				remoteSlotCount = existingSlots.length;
 			} catch {
 				// Keep the optimistic state; the next fresh page load reconciles it.
 			}
-			validationMessage = '42 could not close that slot.';
+			validationMessage = apiErrorMessage('close that slot', error);
 			return false;
 		}
 	}
@@ -136,19 +165,35 @@
 				endAt: dateAndMinutes(after.endDate ?? after.date, after.endMinutes).toISOString()
 			});
 			existingSlots = fromRemoteSlots(response.slots);
-			remoteSlotCount = existingSlots.length;
-			if (response.updateFailed || response.failedIds.length > 0) {
-				validationMessage = '42 could not fully update that slot.';
+			if (response.updateError || response.failedIds.length > 0) {
+				const details = [
+					response.updateError,
+					response.failedIds.length > 0
+						? `${response.failedIds.length} old slot part${response.failedIds.length === 1 ? '' : 's'} could not be removed.`
+						: null
+				].filter(Boolean);
+				validationMessage = `Could not fully update that slot. ${details.join(' ')}`;
 			}
-		} catch {
-			validationMessage = '42 could not update that slot.';
+		} catch (error) {
+			validationMessage = apiErrorMessage('update that slot', error);
 			try {
 				existingSlots = fromRemoteSlots(await getOpenSlotsFresh());
-				remoteSlotCount = existingSlots.length;
 			} catch {
 				// The next fresh page load reconciles the calendar.
 			}
 		}
+	}
+
+	function apiErrorMessage(action: string, cause: unknown): string {
+		const detail =
+			cause instanceof Error
+				? cause.message
+				: typeof cause === 'object' && cause !== null && 'message' in cause
+					? String(cause.message)
+					: '';
+		return detail && !/^\[object Object\]$/.test(detail)
+			? `Could not ${action}. ${detail}`
+			: `Could not ${action}. Please try again; if it keeps failing, check your 42 session and slot rules.`;
 	}
 	function makeTestSlot(
 		id: string,
@@ -234,7 +279,6 @@
 			void getOpenSlotsFresh()
 				.then((remoteSlots) => {
 					const fetched = fromRemoteSlots(remoteSlots);
-					remoteSlotCount = fetched.length;
 					existingSlots = fetched;
 				})
 				.catch(() => {
@@ -296,6 +340,7 @@
 		bind:dayLayout
 		bind:pixelsPerHour
 		{minimumDuration}
+		editing={editingSlot !== null}
 		onprevious={() => changeRange(-visibleDayCount)}
 		ontoday={goToToday}
 		onnext={() => changeRange(visibleDayCount)}
@@ -307,6 +352,7 @@
 		{days}
 		bind:slots={existingSlots}
 		bind:draft
+		editingSlotId={editingSlot?.id ?? null}
 		snapInterval={snapMinutes}
 		{minimumDuration}
 		{calendarHeight}
@@ -316,8 +362,8 @@
 			(pixelsPerHour = Math.min(140, Math.max(35, pixelsPerHour + direction * 10)))}
 		onremoveslot={removeExistingSlot}
 		onupdateslot={updateExistingSlot}
+		onstartedit={startEditingSlot}
 	/>
-	{#if remoteSlotCount > 0}<p class="loaded">{remoteSlotCount} fetched slots loaded</p>{/if}
 	{#if validationMessage}<p class="alert" role="alert">{validationMessage}</p>{/if}
 </main>
 
@@ -331,11 +377,6 @@
 	}
 	main.has-draft {
 		padding-bottom: 7rem;
-	}
-	.loaded {
-		margin: 0.5rem 0 0;
-		color: #666;
-		font-size: 0.75rem;
 	}
 	.alert {
 		position: fixed;

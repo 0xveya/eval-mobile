@@ -1,0 +1,25 @@
+services:
+  valkey:
+    image: valkey/valkey:9.1.1-alpine
+    ports:
+      - '6379:6379'
+    volumes:
+      - valkey-dev-data:/data
+    command:
+      [
+        'valkey-server',
+        '--appendonly',
+        'yes',
+        '--maxmemory',
+        '64mb',
+        '--maxmemory-policy',
+        'volatile-ttl'
+      ]
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+volumes:
+  valkey-dev-data:

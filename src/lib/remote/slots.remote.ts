@@ -2,7 +2,7 @@ import { command, getRequestEvent, query } from '$app/server';
 import { error } from '@sveltejs/kit';
 import * as v from 'valibot';
 
-import { throwApiError } from '$lib/utils/utils';
+import { describeApiError, throwApiError } from '$lib/utils/utils';
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { getValkey } from '$lib/server/valkey';
 import { cachedJson, invalidateCachedJson } from '$lib/server/cache';
@@ -96,10 +96,10 @@ export const updateOpenSlot = command(
 			beginAt,
 			endAt
 		});
-		const updateFailed = updated.isErr();
+		const updateError = updated.isErr() ? describeApiError(updated.error) : null;
 
 		const slots = await refreshOpenSlots(client, session.userId);
-		return { slots, failedIds, updateFailed };
+		return { slots, failedIds, updateError };
 	}
 );
 
