@@ -10,6 +10,8 @@ import type { Slots } from '$lib/server/fourtytwo/schemas';
 
 const SLOT_SETTINGS_TTL_SECONDS = 6 * 60 * 60;
 const OPEN_SLOTS_TTL_SECONDS = 30;
+const SLOT_DELETE_INTERVAL_MS = 550;
+const SLOT_DELETE_RETRY_DELAYS_MS = [700, 1_400];
 
 function openSlotsCacheKey(userId: number): string {
 	return `user:${userId}:open-slots`;
@@ -56,15 +58,81 @@ export const deleteOpenSlots = command(
 	async ({ ids }) => {
 		const session = requireSession();
 		const client = createFortyTwoClient(session.accessToken);
-		for (const id of ids) {
-			(await client.slots.remove(id)).match(
-				() => undefined,
-				(apiError) => throwApiError(apiError)
-			);
+		const failedIds: number[] = [];
+		for (const [index, id] of ids.entries()) {
+			if (index > 0) await delay(SLOT_DELETE_INTERVAL_MS);
+			if (!(await removeSlotWithRetry(client, id))) failedIds.push(id);
 		}
-		return refreshOpenSlots(client, session.userId);
+
+		// Reconcile with 42 even after a partial failure. This also replaces the
+		// cached list, so deleting a slot directly in the intranet cannot leave a
+		// ghost range after the next fresh load.
+		const slots = await refreshOpenSlots(client, session.userId);
+		return { slots, failedIds };
 	}
 );
+
+export const updateOpenSlot = command(
+	v.object({
+		ids: v.pipe(v.array(v.number()), v.minLength(1)),
+		beginAt: v.string(),
+		endAt: v.string()
+	}),
+	async ({ ids, beginAt, endAt }) => {
+		const session = requireSession();
+		const client = createFortyTwoClient(session.accessToken);
+		const [retainedId, ...obsoleteIds] = ids;
+		if (retainedId === undefined) error(400, 'A slot id is required');
+
+		const failedIds: number[] = [];
+		for (const [index, id] of obsoleteIds.entries()) {
+			if (index > 0) await delay(SLOT_DELETE_INTERVAL_MS);
+			if (!(await removeSlotWithRetry(client, id))) failedIds.push(id);
+		}
+
+		if (obsoleteIds.length > 0) await delay(SLOT_DELETE_INTERVAL_MS);
+		const updated = await client.slots.update(retainedId, {
+			userId: session.userId,
+			beginAt,
+			endAt
+		});
+		const updateFailed = updated.isErr();
+
+		const slots = await refreshOpenSlots(client, session.userId);
+		return { slots, failedIds, updateFailed };
+	}
+);
+
+async function removeSlotWithRetry(
+	client: ReturnType<typeof createFortyTwoClient>,
+	id: number
+): Promise<boolean> {
+	for (let attempt = 0; attempt <= SLOT_DELETE_RETRY_DELAYS_MS.length; attempt += 1) {
+		const result = await client.slots.remove(id);
+		if (
+			result.isOk() ||
+			(result.isErr() && result.error.type === 'http' && result.error.status === 404)
+		)
+			return true;
+
+		if (!result.isErr() || !isTransientDeleteError(result.error)) return false;
+		const retryDelay = SLOT_DELETE_RETRY_DELAYS_MS[attempt];
+		if (retryDelay === undefined) return false;
+		await delay(retryDelay);
+	}
+	return false;
+}
+
+function isTransientDeleteError(apiError: Parameters<typeof throwApiError>[0]): boolean {
+	return (
+		apiError.type === 'network' ||
+		(apiError.type === 'http' && (apiError.status === 429 || apiError.status >= 500))
+	);
+}
+
+function delay(milliseconds: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function requireSession() {
 	const { locals } = getRequestEvent();

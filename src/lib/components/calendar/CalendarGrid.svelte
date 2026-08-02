@@ -29,7 +29,8 @@
 		onvalidation,
 		onedgenavigate,
 		onzoom,
-		onremoveslot
+		onremoveslot,
+		onupdateslot
 	}: {
 		days: CalendarDay[];
 		slots: CalendarSlot[];
@@ -41,6 +42,7 @@
 		onedgenavigate: (direction: -1 | 1) => void;
 		onzoom: (direction: -1 | 1) => void;
 		onremoveslot: (slot: CalendarSlot) => Promise<boolean>;
+		onupdateslot: (before: CalendarSlot, after: CalendarSlot) => Promise<void>;
 	} = $props();
 
 	let interaction = $state<Interaction | null>(null);
@@ -49,6 +51,7 @@
 	let pointerStartX = 0;
 	let pointerStartY = 0;
 	let interactionMoved = $state(false);
+	let interactionOriginal: CalendarSlot | null = null;
 	let calendarElement: HTMLElement;
 	let lastEdgeNavigation = 0;
 	let pendingCancellationId = $state<string | null>(null);
@@ -56,7 +59,10 @@
 	let pinchDistance = 0;
 	const labelInterval = $derived(calendarHeight / 24 >= 120 ? 15 : 30);
 	const timeLabels = $derived(
-		Array.from({ length: MINUTES_PER_DAY / labelInterval + 1 }, (_, index) => index * labelInterval)
+		Array.from(
+			{ length: MINUTES_PER_DAY / labelInterval - 1 },
+			(_, index) => (index + 1) * labelInterval
+		)
 	);
 	type SlotSegment = {
 		slot: CalendarSlot;
@@ -335,6 +341,7 @@
 		pointerStartX = event.clientX;
 		pointerStartY = event.clientY;
 		interactionMoved = false;
+		interactionOriginal = 'id' in slot ? structuredClone(slot) : null;
 		const day = element.parentElement as HTMLElement;
 		const pointerMinutes = minutesFromPointer(event, day, snapInterval);
 		const pointerDate = dateAndMinutes(day.dataset.date ?? slot.date, pointerMinutes);
@@ -374,6 +381,7 @@
 		pointerStartX = event.clientX;
 		pointerStartY = event.clientY;
 		interactionMoved = false;
+		interactionOriginal = 'id' in slot ? structuredClone(slot) : null;
 		interaction = { type: 'resize', pointerId: event.pointerId, slotId: id, edge };
 		const edgeDate = edge === 'start' ? slot.date : (slot.endDate ?? slot.date);
 		const minutes = edge === 'start' ? slot.startMinutes : slot.endMinutes;
@@ -430,15 +438,33 @@
 
 	function finish(event: PointerEvent) {
 		if (!interaction || interaction.pointerId !== event.pointerId) return;
+		const completedInteraction = interaction;
+		const moved = interactionMoved;
+		const original = interactionOriginal;
+		const updated =
+			'slotId' in completedInteraction
+				? slots.find((slot) => slot.id === completedInteraction.slotId)
+				: undefined;
 		if (calendarElement.hasPointerCapture(event.pointerId))
 			calendarElement.releasePointerCapture(event.pointerId);
 		clearInteraction();
+		if (moved && original && updated && rangeChanged(original, updated)) {
+			void onupdateslot(original, updated);
+		}
+	}
+
+	function rangeChanged(before: CalendarSlot, after: CalendarSlot): boolean {
+		return (
+			rangeStart(before).getTime() !== rangeStart(after).getTime() ||
+			rangeEnd(before).getTime() !== rangeEnd(after).getTime()
+		);
 	}
 
 	function clearInteraction() {
 		interaction = null;
 		gesture = null;
 		interactionMoved = false;
+		interactionOriginal = null;
 		clearLongPress();
 	}
 

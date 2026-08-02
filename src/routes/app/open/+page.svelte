@@ -6,7 +6,8 @@
 		deleteOpenSlots,
 		getOpenSlots,
 		getOpenSlotsFresh,
-		getSlotSettings
+		getSlotSettings,
+		updateOpenSlot
 	} from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
 	import CalendarToolbar from '$lib/components/calendar/CalendarToolbar.svelte';
@@ -100,14 +101,53 @@
 		if (useMockData) return true;
 		const remoteIds = slot.remoteIds ?? [Number(slot.id.replace(/^remote-/, ''))];
 		if (remoteIds.length === 0 || remoteIds.some((id) => !Number.isInteger(id))) return false;
+		// Closing a grouped range can require several 42 requests. Remove it from
+		// the calendar immediately, then reconcile with the server response.
+		existingSlots = existingSlots.filter((item) => item.id !== slot.id);
+		remoteSlotCount = existingSlots.length;
 		try {
-			const slots = await deleteOpenSlots({ ids: remoteIds });
+			const { slots, failedIds } = await deleteOpenSlots({ ids: remoteIds });
 			existingSlots = fromRemoteSlots(slots);
 			remoteSlotCount = existingSlots.length;
+			if (failedIds.length > 0) {
+				validationMessage = 'Some parts of that slot could not be closed. Please try again.';
+			}
 			return false;
 		} catch {
+			try {
+				existingSlots = fromRemoteSlots(await getOpenSlotsFresh());
+				remoteSlotCount = existingSlots.length;
+			} catch {
+				// Keep the optimistic state; the next fresh page load reconciles it.
+			}
 			validationMessage = '42 could not close that slot.';
 			return false;
+		}
+	}
+
+	async function updateExistingSlot(before: CalendarSlot, after: CalendarSlot): Promise<void> {
+		if (useMockData || !before.remote) return;
+		const remoteIds = before.remoteIds ?? [Number(before.id.replace(/^remote-/, ''))];
+		if (remoteIds.length === 0 || remoteIds.some((id) => !Number.isInteger(id))) return;
+		try {
+			const response = await updateOpenSlot({
+				ids: remoteIds,
+				beginAt: dateAndMinutes(after.date, after.startMinutes).toISOString(),
+				endAt: dateAndMinutes(after.endDate ?? after.date, after.endMinutes).toISOString()
+			});
+			existingSlots = fromRemoteSlots(response.slots);
+			remoteSlotCount = existingSlots.length;
+			if (response.updateFailed || response.failedIds.length > 0) {
+				validationMessage = '42 could not fully update that slot.';
+			}
+		} catch {
+			validationMessage = '42 could not update that slot.';
+			try {
+				existingSlots = fromRemoteSlots(await getOpenSlotsFresh());
+				remoteSlotCount = existingSlots.length;
+			} catch {
+				// The next fresh page load reconciles the calendar.
+			}
 		}
 	}
 	function makeTestSlot(
@@ -275,6 +315,7 @@
 		onzoom={(direction) =>
 			(pixelsPerHour = Math.min(140, Math.max(35, pixelsPerHour + direction * 10)))}
 		onremoveslot={removeExistingSlot}
+		onupdateslot={updateExistingSlot}
 	/>
 	{#if remoteSlotCount > 0}<p class="loaded">{remoteSlotCount} fetched slots loaded</p>{/if}
 	{#if validationMessage}<p class="alert" role="alert">{validationMessage}</p>{/if}
