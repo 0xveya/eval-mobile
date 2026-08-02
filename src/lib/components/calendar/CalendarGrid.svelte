@@ -46,7 +46,7 @@
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let pointerStartX = 0;
 	let pointerStartY = 0;
-	let interactionMoved = false;
+	let interactionMoved = $state(false);
 	let calendarElement: HTMLElement;
 	let lastEdgeNavigation = 0;
 	let pendingCancellationId = $state<string | null>(null);
@@ -569,7 +569,9 @@
 	{/each}
 </div>
 
-{#if gesture && gesture.pointerType !== 'mouse'}<TimeLoupe {gesture} />{/if}
+{#if gesture && gesture.pointerType !== 'mouse' && (interaction?.type === 'create' || interactionMoved)}
+	<TimeLoupe {gesture} />
+{/if}
 {#if pendingCancellationId}
 	<ConfirmDialog
 		title="Cancel evaluation?"
@@ -658,7 +660,7 @@
 		position: absolute;
 		inset: 0 0 auto;
 		z-index: 4;
-		background: color-mix(in srgb, var(--overlay) 90%, transparent);
+		background: var(--overlay);
 		box-shadow: inset 0 -1px 0 var(--border);
 		pointer-events: none;
 	}

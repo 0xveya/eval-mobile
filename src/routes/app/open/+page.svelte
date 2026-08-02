@@ -4,6 +4,7 @@
 	import { getOpenSlots, getSlotSettings } from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
 	import CalendarToolbar from '$lib/components/calendar/CalendarToolbar.svelte';
+	import CalendarHelp from '$lib/components/calendar/CalendarHelp.svelte';
 	import {
 		addDays,
 		dateAndMinutes,
@@ -12,6 +13,7 @@
 	} from '$lib/components/calendar/calendar-math';
 	import type { CalendarSlot, DayLayout, DraftSlot } from '$lib/components/calendar/calendar-types';
 
+	let { data } = $props();
 	let dayLayout = $state<DayLayout>('auto');
 	// Mobile-first fallback avoids rendering three columns before matchMedia runs.
 	let narrowScreen = $state(true);
@@ -22,6 +24,8 @@
 	let draft = $state<DraftSlot | null>(null);
 	let validationMessage = $state('');
 	let remoteSlotCount = $state(0);
+	let showHelp = $state(false);
+	let mobileHelp = $state(true);
 	const useMockData = env.PUBLIC_USE_MOCK_DATA === 'true';
 	let existingSlots = $state<CalendarSlot[]>(
 		useMockData
@@ -107,6 +111,12 @@
 			narrowScreen = query.matches;
 		};
 		update();
+		mobileHelp = window.matchMedia('(pointer: coarse), (max-width: 520px)').matches;
+		try {
+			showHelp = localStorage.getItem(`eval-mobile-slot-guide:${data.user.id}`) !== 'seen';
+		} catch {
+			showHelp = true;
+		}
 		query.addEventListener('change', update);
 		if (!useMockData) {
 			void getOpenSlots()
@@ -128,6 +138,15 @@
 			});
 		return () => query.removeEventListener('change', update);
 	});
+
+	function dismissHelp() {
+		showHelp = false;
+		try {
+			localStorage.setItem(`eval-mobile-slot-guide:${data.user.id}`, 'seen');
+		} catch {
+			// Dismiss for this page even when storage is unavailable.
+		}
+	}
 </script>
 
 <svelte:head><title>Open slots</title></svelte:head>
@@ -159,6 +178,8 @@
 	{#if remoteSlotCount > 0}<p class="loaded">{remoteSlotCount} fetched slots loaded</p>{/if}
 	{#if validationMessage}<p class="alert" role="alert">{validationMessage}</p>{/if}
 </main>
+
+{#if showHelp}<CalendarHelp mobile={mobileHelp} ondismiss={dismissHelp} />{/if}
 
 <style>
 	main {
