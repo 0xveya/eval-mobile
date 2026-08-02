@@ -88,9 +88,18 @@
 
 <style>
 	.toolbar {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		z-index: 50;
 		display: grid;
 		gap: 0.4rem;
-		margin-bottom: 0.75rem;
+		margin: 0;
+		padding: 0.45rem max(0.4rem, env(safe-area-inset-right))
+			max(0.4rem, env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
+		border-top: 1px solid var(--border);
+		background: var(--surface);
 	}
 	.control-row,
 	nav,
@@ -103,6 +112,7 @@
 	}
 	.control-row {
 		gap: 0.5rem;
+		padding-right: 2.75rem;
 	}
 	button,
 	summary {
@@ -173,33 +183,15 @@
 		color: var(--surface);
 	}
 	.toolbar > small {
-		color: var(--muted);
-		font-size: 0.62rem;
-		text-align: center;
+		display: none;
 	}
 	@media (max-width: 520px) {
-		.toolbar {
-			position: fixed;
-			right: 0;
-			bottom: 0;
-			left: 0;
-			z-index: 50;
-			margin: 0;
-			padding: 0.45rem max(0.4rem, env(safe-area-inset-right))
-				max(0.4rem, env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
-			border-top: 1px solid var(--border);
-			background: var(--surface);
-		}
 		.control-row {
 			gap: 0.35rem;
-			padding-right: 3rem;
 		}
 		.draft-control {
 			width: 100%;
 			justify-self: center;
-		}
-		.toolbar > small {
-			display: none;
 		}
 	}
 	@media (max-width: 370px) {

@@ -156,7 +156,10 @@
 	main {
 		width: min(76rem, calc(100% - 2rem));
 		margin: 0 auto;
-		padding: 1rem 0 3rem;
+		padding: 1rem 0 4.25rem;
+	}
+	main.has-draft {
+		padding-bottom: 7rem;
 	}
 	.loaded {
 		margin: 0.5rem 0 0;
@@ -186,7 +189,7 @@
 			padding: 0.25rem 0 3.75rem;
 		}
 		main.has-draft {
-			padding-bottom: 6.5rem;
+			padding-bottom: 7rem;
 		}
 	}
 </style>

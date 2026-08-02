@@ -58,8 +58,8 @@
 	summary {
 		display: grid;
 		place-items: center;
-		width: 2.5rem;
-		height: 2.5rem;
+		width: 2.25rem;
+		height: 2.25rem;
 		border: 1px solid var(--border);
 		border-radius: 0.55rem;
 		background: var(--overlay);
