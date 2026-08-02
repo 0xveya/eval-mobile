@@ -1,10 +1,21 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { onMount } from 'svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+
+	let appMenu: HTMLDetailsElement;
+
+	onMount(() => {
+		const closeAway = (event: PointerEvent) => {
+			if (appMenu.open && !appMenu.contains(event.target as Node)) appMenu.open = false;
+		};
+		document.addEventListener('pointerdown', closeAway);
+		return () => document.removeEventListener('pointerdown', closeAway);
+	});
 </script>
 
 <nav class="app-menu" aria-label="App menu">
-	<details>
+	<details bind:this={appMenu}>
 		<summary aria-label="Open app menu" title="Menu">
 			<svg viewBox="0 0 24 24" aria-hidden="true"
 				><circle cx="5" cy="12" r="1"></circle><circle cx="12" cy="12" r="1"></circle><circle

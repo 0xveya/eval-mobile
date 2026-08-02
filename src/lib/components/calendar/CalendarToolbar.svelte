@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { formatMinutes } from './calendar-math';
 	import type { DayLayout, DraftSlot } from './calendar-types';
 
@@ -33,6 +34,14 @@
 		dayLayout = value;
 		layoutMenu.open = false;
 	}
+
+	onMount(() => {
+		const closeAway = (event: PointerEvent) => {
+			if (layoutMenu.open && !layoutMenu.contains(event.target as Node)) layoutMenu.open = false;
+		};
+		document.addEventListener('pointerdown', closeAway);
+		return () => document.removeEventListener('pointerdown', closeAway);
+	});
 </script>
 
 <section class="toolbar" aria-label="Calendar controls">
@@ -174,13 +183,19 @@
 			left: 0;
 			z-index: 50;
 			margin: 0;
-			padding: 0.45rem max(3.5rem, calc(3rem + env(safe-area-inset-right)))
+			padding: 0.45rem max(0.4rem, env(safe-area-inset-right))
 				max(0.4rem, env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
 			border-top: 1px solid var(--border);
 			background: var(--surface);
 		}
 		.control-row {
 			gap: 0.35rem;
+			padding-right: 3rem;
+		}
+		.draft-control {
+			width: min(32rem, 100%);
+			justify-self: center;
+			box-sizing: border-box;
 		}
 		.toolbar > small {
 			display: none;
