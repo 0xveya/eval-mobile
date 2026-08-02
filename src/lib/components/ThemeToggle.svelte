@@ -48,7 +48,7 @@
 		grid-template-columns: 1.15rem 1fr;
 		gap: 0.5rem;
 		padding: 0 0.65rem;
-		border: 1px solid var(--border);
+		border: 0;
 		border-radius: 0.5rem;
 		background: transparent;
 		color: var(--subtle);

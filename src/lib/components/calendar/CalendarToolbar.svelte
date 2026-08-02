@@ -155,6 +155,8 @@
 		font-size: 1rem;
 	}
 	.draft-control {
+		width: 100%;
+		box-sizing: border-box;
 		padding: 0.35rem;
 		border-radius: 0.5rem;
 		background: var(--overlay);
@@ -193,9 +195,8 @@
 			padding-right: 3rem;
 		}
 		.draft-control {
-			width: min(32rem, 100%);
+			width: 100%;
 			justify-self: center;
-			box-sizing: border-box;
 		}
 		.toolbar > small {
 			display: none;
