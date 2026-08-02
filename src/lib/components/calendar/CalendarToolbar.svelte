@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { DayLayout } from './calendar-types';
+	import { formatMinutes } from './calendar-math';
+	import type { DayLayout, DraftSlot } from './calendar-types';
 
 	let {
 		dayLayout = $bindable(),
@@ -7,7 +8,10 @@
 		pixelsPerHour = $bindable(),
 		onprevious,
 		ontoday,
-		onnext
+		onnext,
+		draft,
+		onconfirm,
+		oncancel
 	}: {
 		dayLayout: DayLayout;
 		snapMinutes: number;
@@ -15,6 +19,9 @@
 		onprevious: () => void;
 		ontoday: () => void;
 		onnext: () => void;
+		draft: DraftSlot | null;
+		onconfirm: () => void;
+		oncancel: () => void;
 	} = $props();
 </script>
 
@@ -49,6 +56,14 @@
 			<input type="range" min="35" max="140" step="5" bind:value={pixelsPerHour} />
 		</label>
 	</div>
+
+	{#if draft}
+		<div class="draft-control">
+			<span>{formatMinutes(draft.startMinutes)}–{formatMinutes(draft.endMinutes)}</span>
+			<button type="button" onclick={oncancel}>Cancel</button>
+			<button type="button" class="confirm" onclick={onconfirm}>Add</button>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -90,6 +105,19 @@
 		align-items: end;
 		gap: 0.7rem;
 	}
+	.draft-control {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.draft-control span {
+		font-size: 0.8rem;
+		font-weight: 700;
+	}
+	.confirm {
+		background: #222;
+		color: white;
+	}
 	label {
 		display: grid;
 		gap: 0.25rem;
@@ -114,14 +142,31 @@
 	}
 	@media (max-width: 520px) {
 		.toolbar {
-			gap: 0.5rem;
-			margin-bottom: 0.5rem;
+			position: fixed;
+			right: 0;
+			bottom: 0;
+			left: 0;
+			z-index: 50;
+			justify-content: center;
+			gap: 0.4rem 0.75rem;
+			margin: 0;
+			padding: 0.5rem;
+			border-top: 1px solid #aaa;
+			background: #fff;
 		}
 		.settings {
 			gap: 0.4rem;
 		}
 		.zoom {
 			display: none;
+		}
+		label > span {
+			display: none;
+		}
+		.draft-control {
+			width: 100%;
+			justify-content: center;
+			order: -1;
 		}
 	}
 </style>
