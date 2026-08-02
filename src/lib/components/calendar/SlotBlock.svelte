@@ -27,6 +27,7 @@
 	} = $props();
 
 	const label = $derived(draft ? 'Draft' : (slot as CalendarSlot).label);
+	const compact = $derived(slot.endMinutes - slot.startMinutes <= 45);
 
 	function handleMoveDown(event: PointerEvent, element: HTMLElement) {
 		if (locked) {
@@ -42,6 +43,7 @@
 	class:draft
 	class:past
 	class:locked
+	class:compact
 	data-slot-id={id}
 	role="group"
 	aria-label={`${label}, draggable slot`}
@@ -61,8 +63,10 @@
 		onpointerdown={(event) => event.stopPropagation()}
 		onclick={onremove}>×</button
 	>
-	<strong>{label}</strong>
-	<span>{formatMinutes(slot.startMinutes)}–{formatMinutes(slot.endMinutes)}</span>
+	<div class="slot-label">
+		<strong>{label}</strong>
+		<span>{formatMinutes(slot.startMinutes)}–{formatMinutes(slot.endMinutes)}</span>
+	</div>
 	{#if !locked && showEndHandle}<button
 			class="resize bottom"
 			type="button"
@@ -79,8 +83,8 @@
 		z-index: 3;
 		display: grid;
 		align-content: start;
-		min-height: 1.8rem;
-		padding: 0.42rem 0.5rem;
+		min-height: 0;
+		padding: 0.3rem 0.5rem;
 		overflow: visible;
 		border: 1px solid var(--open-border);
 		border-radius: 0.25rem;
@@ -116,20 +120,45 @@
 		color: var(--booked-text);
 		cursor: default;
 	}
+	.slot-label {
+		position: relative;
+		z-index: 1;
+		display: grid;
+		align-self: center;
+		min-width: 0;
+	}
 	strong {
 		padding-right: 1.25rem;
 		font-size: 0.78rem;
 	}
-	.slot > span {
+	.slot-label > span {
 		font-size: 0.7rem;
 		font-variant-numeric: tabular-nums;
+	}
+	.compact {
+		align-content: center;
+		padding-block: 0;
+	}
+	.compact .slot-label {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+	.compact strong {
+		padding-right: 0;
+	}
+	.compact .slot-label > span {
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.resize {
 		position: absolute;
 		left: 0.3rem;
 		right: 0.3rem;
 		z-index: 2;
-		height: 1.2rem;
+		height: 1.5rem;
 		padding: 0;
 		border: 0;
 		background: transparent;
@@ -150,6 +179,9 @@
 	}
 	.bottom {
 		bottom: -0.45rem;
+	}
+	.compact .resize span {
+		display: none;
 	}
 	.remove {
 		position: absolute;

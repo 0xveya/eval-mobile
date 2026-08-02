@@ -371,7 +371,10 @@
 
 	function applyCandidate(id: string, candidate: DraftSlot) {
 		const problem = validate(candidate, id === 'draft' ? undefined : id);
-		if (problem) return onvalidation(problem);
+		if (problem) {
+			if (interaction?.type === 'move' || interaction?.type === 'resize') return;
+			return onvalidation(problem);
+		}
 		onvalidation('');
 		if (id === 'draft') draft = candidate;
 		else slots = updateSlot(slots, id, candidate);
