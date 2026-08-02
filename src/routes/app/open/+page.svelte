@@ -26,7 +26,9 @@
 	let remoteSlotCount = $state(0);
 	let showHelp = $state(false);
 	let mobileHelp = $state(true);
+	let mockStorageReady = $state(false);
 	const useMockData = env.PUBLIC_USE_MOCK_DATA === 'true';
+	const mockSlotsKey = $derived(`eval-mobile-mock-slots:${data.user.id}`);
 	let existingSlots = $state<CalendarSlot[]>(
 		useMockData
 			? [
@@ -118,7 +120,18 @@
 			showHelp = true;
 		}
 		query.addEventListener('change', update);
-		if (!useMockData) {
+		if (useMockData) {
+			try {
+				const stored = localStorage.getItem(mockSlotsKey);
+				if (stored) {
+					const parsed = JSON.parse(stored) as unknown;
+					if (isCalendarSlotArray(parsed)) existingSlots = parsed;
+				}
+			} catch {
+				// Keep the built-in fixtures when stored mock data is unavailable or invalid.
+			}
+			mockStorageReady = true;
+		} else {
 			void getOpenSlots()
 				.then((remoteSlots) => {
 					const fetched = remoteSlots.map(fromRemoteSlot);
@@ -128,16 +141,44 @@
 				.catch(() => {
 					validationMessage = 'Could not load your slots.';
 				});
+			void getSlotSettings()
+				.then((settings) => {
+					minimumDuration = settings.minimumDurationMinutes;
+				})
+				.catch(() => {
+					// Keep the API's documented 30-minute default.
+				});
 		}
-		void getSlotSettings()
-			.then((settings) => {
-				minimumDuration = settings.minimumDurationMinutes;
-			})
-			.catch(() => {
-				// Keep the API's documented 30-minute default.
-			});
 		return () => query.removeEventListener('change', update);
 	});
+
+	$effect(() => {
+		if (!useMockData || !mockStorageReady) return;
+		try {
+			localStorage.setItem(mockSlotsKey, JSON.stringify(existingSlots));
+		} catch {
+			// Mock interactions still work for this page when storage is unavailable.
+		}
+	});
+
+	function isCalendarSlotArray(value: unknown): value is CalendarSlot[] {
+		return (
+			Array.isArray(value) &&
+			value.every(
+				(slot) =>
+					typeof slot === 'object' &&
+					slot !== null &&
+					'id' in slot &&
+					typeof slot.id === 'string' &&
+					'date' in slot &&
+					typeof slot.date === 'string' &&
+					'startMinutes' in slot &&
+					typeof slot.startMinutes === 'number' &&
+					'endMinutes' in slot &&
+					typeof slot.endMinutes === 'number'
+			)
+		);
+	}
 
 	function dismissHelp() {
 		showHelp = false;
