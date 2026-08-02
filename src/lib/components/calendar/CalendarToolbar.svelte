@@ -4,8 +4,8 @@
 
 	let {
 		dayLayout = $bindable(),
-		snapMinutes = $bindable(),
 		pixelsPerHour = $bindable(),
+		minimumDuration,
 		onprevious,
 		ontoday,
 		onnext,
@@ -14,8 +14,8 @@
 		oncancel
 	}: {
 		dayLayout: DayLayout;
-		snapMinutes: number;
 		pixelsPerHour: number;
+		minimumDuration: number;
 		onprevious: () => void;
 		ontoday: () => void;
 		onnext: () => void;
@@ -23,40 +23,19 @@
 		onconfirm: () => void;
 		oncancel: () => void;
 	} = $props();
+
+	let layoutMenu: HTMLDetailsElement;
+	const layoutLabel = $derived(
+		dayLayout === 'auto' ? 'Auto' : `${dayLayout} day${dayLayout === 1 ? '' : 's'}`
+	);
+
+	function selectLayout(value: DayLayout) {
+		dayLayout = value;
+		layoutMenu.open = false;
+	}
 </script>
 
 <section class="toolbar" aria-label="Calendar controls">
-	<nav aria-label="Date navigation">
-		<button type="button" onclick={onprevious} aria-label="Previous days">←</button>
-		<button type="button" class="today" onclick={ontoday}>Today</button>
-		<button type="button" onclick={onnext} aria-label="Next days">→</button>
-	</nav>
-
-	<div class="settings">
-		<label>
-			<span>Days</span>
-			<select bind:value={dayLayout}>
-				<option value="auto">Automatic</option>
-				<option value={1}>1 day</option>
-				<option value={2}>2 days</option>
-				<option value={3}>3 days</option>
-			</select>
-		</label>
-		<label>
-			<span>Snap</span>
-			<select bind:value={snapMinutes}>
-				<option value={5}>5 min</option>
-				<option value={10}>10 min</option>
-				<option value={15}>15 min</option>
-				<option value={30}>30 min</option>
-			</select>
-		</label>
-		<label class="zoom">
-			<span>Zoom · {pixelsPerHour}px</span>
-			<input type="range" min="35" max="140" step="5" bind:value={pixelsPerHour} />
-		</label>
-	</div>
-
 	{#if draft}
 		<div class="draft-control">
 			<span>{formatMinutes(draft.startMinutes)}–{formatMinutes(draft.endMinutes)}</span>
@@ -64,81 +43,128 @@
 			<button type="button" class="confirm" onclick={onconfirm}>Add</button>
 		</div>
 	{/if}
+
+	<div class="control-row">
+		<nav aria-label="Date navigation">
+			<button type="button" onclick={onprevious} aria-label="Previous days">←</button>
+			<button type="button" class="today" onclick={ontoday}>Today</button>
+			<button type="button" onclick={onnext} aria-label="Next days">→</button>
+		</nav>
+
+		<details class="layout-picker" bind:this={layoutMenu}>
+			<summary>{layoutLabel}</summary>
+			<div>
+				<button type="button" onclick={() => selectLayout('auto')}>Automatic</button>
+				<button type="button" onclick={() => selectLayout(1)}>1 day</button>
+				<button type="button" onclick={() => selectLayout(2)}>2 days</button>
+				<button type="button" onclick={() => selectLayout(3)}>3 days</button>
+			</div>
+		</details>
+
+		<div class="zoom" aria-label="Timeline zoom">
+			<button
+				type="button"
+				aria-label="Zoom out"
+				onclick={() => (pixelsPerHour = Math.max(35, pixelsPerHour - 10))}>−</button
+			>
+			<button
+				type="button"
+				aria-label="Zoom in"
+				onclick={() => (pixelsPerHour = Math.min(140, pixelsPerHour + 10))}>＋</button
+			>
+		</div>
+	</div>
+	<small>15 min grid · {minimumDuration} min campus minimum</small>
 </section>
 
 <style>
 	.toolbar {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: end;
-		justify-content: space-between;
-		gap: 1rem;
-		margin-bottom: 1rem;
+		display: grid;
+		gap: 0.4rem;
+		margin-bottom: 0.75rem;
 	}
-	nav {
+	.control-row,
+	nav,
+	.zoom,
+	.draft-control {
 		display: flex;
-		gap: 0.35rem;
+		align-items: center;
+		justify-content: center;
+		gap: 0.25rem;
+	}
+	.control-row {
+		gap: 0.5rem;
 	}
 	button,
-	select {
-		min-height: 2rem;
-		border: 1px solid #aaa;
-		border-radius: 0.25rem;
-		background: #fff;
-		color: #222;
-	}
-	button {
-		min-width: 2rem;
-		padding: 0 0.5rem;
-		cursor: pointer;
+	summary {
+		display: grid;
+		place-items: center;
+		min-height: 2.25rem;
+		padding: 0 0.65rem;
+		border: 1px solid var(--border);
+		border-radius: 0.45rem;
+		background: var(--base);
+		color: var(--text);
+		font: inherit;
+		font-size: 0.78rem;
 		font-weight: 700;
-	}
-	button:hover {
-		border-color: #26241f;
+		cursor: pointer;
 	}
 	.today {
 		min-width: 4rem;
 	}
-	.settings {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: end;
-		gap: 0.7rem;
+	.layout-picker {
+		position: relative;
+	}
+	summary {
+		min-width: 4.8rem;
+		list-style: none;
+	}
+	summary::-webkit-details-marker {
+		display: none;
+	}
+	.layout-picker > div {
+		position: absolute;
+		right: 0;
+		bottom: calc(100% + 0.35rem);
+		z-index: 5;
+		display: grid;
+		gap: 0.2rem;
+		width: 8rem;
+		padding: 0.3rem;
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		background: var(--surface);
+	}
+	.layout-picker > div button {
+		justify-content: start;
+		border-color: transparent;
+	}
+	.zoom button {
+		width: 2.25rem;
+		padding: 0;
+		font-size: 1rem;
 	}
 	.draft-control {
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
+		padding: 0.35rem;
+		border-radius: 0.5rem;
+		background: var(--overlay);
 	}
 	.draft-control span {
-		font-size: 0.8rem;
-		font-weight: 700;
+		margin-right: 0.25rem;
+		font-size: 0.82rem;
+		font-weight: 800;
+		font-variant-numeric: tabular-nums;
 	}
 	.confirm {
-		background: #222;
-		color: white;
+		border-color: var(--iris);
+		background: var(--iris);
+		color: var(--surface);
 	}
-	label {
-		display: grid;
-		gap: 0.25rem;
-		color: #555;
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-	}
-	select {
-		padding: 0 0.65rem;
-		font: inherit;
-		font-size: 0.8rem;
-		letter-spacing: 0;
-		text-transform: none;
-	}
-	.zoom {
-		min-width: 9rem;
-	}
-	input {
-		accent-color: #26736b;
+	.toolbar > small {
+		color: var(--muted);
+		font-size: 0.62rem;
+		text-align: center;
 	}
 	@media (max-width: 520px) {
 		.toolbar {
@@ -147,26 +173,29 @@
 			bottom: 0;
 			left: 0;
 			z-index: 50;
-			justify-content: center;
-			gap: 0.4rem 0.75rem;
 			margin: 0;
-			padding: 0.5rem;
-			border-top: 1px solid #aaa;
-			background: #fff;
+			padding: 0.45rem max(3.5rem, calc(3rem + env(safe-area-inset-right)))
+				max(0.4rem, env(safe-area-inset-bottom)) max(0.4rem, env(safe-area-inset-left));
+			border-top: 1px solid var(--border);
+			background: var(--surface);
 		}
-		.settings {
-			gap: 0.4rem;
+		.control-row {
+			gap: 0.35rem;
 		}
-		.zoom {
+		.toolbar > small {
 			display: none;
 		}
-		label > span {
-			display: none;
+	}
+	@media (max-width: 370px) {
+		button,
+		summary {
+			padding: 0 0.45rem;
 		}
-		.draft-control {
-			width: 100%;
-			justify-content: center;
-			order: -1;
+		.today {
+			min-width: 3.5rem;
+		}
+		summary {
+			min-width: 4rem;
 		}
 	}
 </style>

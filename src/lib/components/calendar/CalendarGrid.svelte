@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteMap } from 'svelte/reactivity';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import SlotBlock from './SlotBlock.svelte';
 	import TimeLoupe from './TimeLoupe.svelte';
@@ -23,17 +24,21 @@
 		slots = $bindable(),
 		draft = $bindable(),
 		snapInterval,
+		minimumDuration,
 		calendarHeight,
 		onvalidation,
-		onedgenavigate
+		onedgenavigate,
+		onzoom
 	}: {
 		days: CalendarDay[];
 		slots: CalendarSlot[];
 		draft: DraftSlot | null;
 		snapInterval: number;
+		minimumDuration: number;
 		calendarHeight: number;
 		onvalidation: (message: string) => void;
 		onedgenavigate: (direction: -1 | 1) => void;
+		onzoom: (direction: -1 | 1) => void;
 	} = $props();
 
 	let interaction = $state<Interaction | null>(null);
@@ -44,7 +49,12 @@
 	let calendarElement: HTMLElement;
 	let lastEdgeNavigation = 0;
 	let pendingCancellationId = $state<string | null>(null);
-	const hourLabels = Array.from({ length: 25 }, (_, hour) => hour);
+	const touchPoints = new SvelteMap<number, { x: number; y: number }>();
+	let pinchDistance = 0;
+	const labelInterval = $derived(calendarHeight / 24 >= 120 ? 15 : 30);
+	const timeLabels = $derived(
+		Array.from({ length: MINUTES_PER_DAY / labelInterval + 1 }, (_, index) => index * labelInterval)
+	);
 	type SlotSegment = {
 		slot: CalendarSlot;
 		startMinutes: number;
@@ -143,7 +153,10 @@
 	function beginCreate(event: PointerEvent, date: string, day: HTMLElement) {
 		const anchorMinutes = minutesFromPointer(event, day, snapInterval);
 		const start = dateAndMinutes(date, anchorMinutes);
-		const candidate = candidateFromRange(start, new Date(start.getTime() + snapInterval * 60_000));
+		const candidate = candidateFromRange(
+			start,
+			new Date(start.getTime() + minimumDuration * 60_000)
+		);
 		const problem = validate(candidate);
 		if (problem) return onvalidation(problem);
 		clearLongPress();
@@ -164,6 +177,19 @@
 	}
 
 	function handleCalendarPointerMove(event: PointerEvent) {
+		if (event.pointerType === 'touch' && touchPoints.has(event.pointerId)) {
+			touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+			if (touchPoints.size >= 2) {
+				const [first, second] = [...touchPoints.values()];
+				const distance = Math.hypot(first.x - second.x, first.y - second.y);
+				if (Math.abs(distance - pinchDistance) >= 12) {
+					onzoom(distance > pinchDistance ? 1 : -1);
+					pinchDistance = distance;
+				}
+				event.preventDefault();
+				return;
+			}
+		}
 		if (!interaction && longPressTimer) {
 			if (Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) > 10)
 				clearLongPress();
@@ -185,7 +211,12 @@
 			const start = new Date(
 				Math.max(Math.min(anchor.getTime(), pointer.getTime()), earliestLegalStart().getTime())
 			);
-			const end = new Date(Math.max(anchor.getTime(), pointer.getTime()) + snapInterval * 60_000);
+			const end = new Date(
+				Math.max(
+					anchor.getTime() + minimumDuration * 60_000,
+					pointer.getTime() + snapInterval * 60_000
+				)
+			);
 			applyCandidate('draft', candidateFromRange(start, end));
 			return;
 		}
@@ -206,7 +237,7 @@
 		const slot = getInteractionSlot(interaction.slotId);
 		if (!slot) return;
 		const pointer = dateAndMinutes(date, minutesFromPointer(event, targetDay, snapInterval));
-		const minimum = snapInterval * 60_000;
+		const minimum = minimumDuration * 60_000;
 		const start = rangeStart(slot);
 		const end = rangeEnd(slot);
 		if (interaction.edge === 'start') {
@@ -228,6 +259,27 @@
 				candidateFromRange(start, new Date(Math.max(pointer.getTime(), start.getTime() + minimum)))
 			);
 		}
+	}
+
+	function trackPointerDown(event: PointerEvent) {
+		if (event.pointerType !== 'touch') return;
+		touchPoints.set(event.pointerId, { x: event.clientX, y: event.clientY });
+		if (touchPoints.size < 2) return;
+		clearLongPress();
+		clearInteraction();
+		const [first, second] = [...touchPoints.values()];
+		pinchDistance = Math.hypot(first.x - second.x, first.y - second.y);
+	}
+
+	function releasePointer(event: PointerEvent) {
+		touchPoints.delete(event.pointerId);
+		finish(event);
+	}
+
+	function handleWheel(event: WheelEvent) {
+		if (!event.ctrlKey) return;
+		event.preventDefault();
+		onzoom(event.deltaY < 0 ? 1 : -1);
 	}
 
 	function autoScroll(event: PointerEvent) {
@@ -329,6 +381,8 @@
 		const candidateStart = rangeStart(candidate);
 		const candidateEnd = rangeEnd(candidate);
 		if (candidateEnd <= candidateStart) return 'The slot must have a duration.';
+		if ((candidateEnd.getTime() - candidateStart.getTime()) / 60_000 < minimumDuration)
+			return `Your campus requires slots of at least ${minimumDuration} minutes.`;
 		if (candidateStart.getTime() < Date.now()) return 'You cannot open a slot in the past.';
 		if (
 			slots.some(
@@ -387,26 +441,34 @@
 		const now = new Date();
 		return date === toDateKey(now) ? slotTop(now.getHours() * 60 + now.getMinutes()) : null;
 	}
+	function formatTimeLabel(minutes: number) {
+		const hour = Math.floor(minutes / 60);
+		const minute = minutes % 60;
+		return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+	}
 </script>
 
 <div
 	class="calendar"
+	class:single-day={days.length === 1}
 	bind:this={calendarElement}
 	role="region"
 	aria-label="Availability calendar"
 	style={`--day-count:${days.length};--calendar-height:${calendarHeight}px`}
 	onpointermove={handleCalendarPointerMove}
-	onpointerup={finish}
-	onpointercancel={clearInteraction}
-	onlostpointercapture={clearInteraction}
+	onpointerdown={trackPointerDown}
+	onpointerup={releasePointer}
+	onpointercancel={releasePointer}
+	onlostpointercapture={releasePointer}
+	onwheel={handleWheel}
 >
 	<div class="corner"></div>
 	{#each days as day (day.date)}<header>
 			<strong>{day.label}</strong><span>{day.displayDate}</span>
 		</header>{/each}
 	<div class="times" style={`height:${calendarHeight}px`}>
-		{#each hourLabels as hour (hour)}<span style={`top:${(hour / 24) * 100}%`}
-				>{String(hour).padStart(2, '0')}:00</span
+		{#each timeLabels as minutes (minutes)}<span style={`top:${slotTop(minutes)}%`}
+				>{formatTimeLabel(minutes)}</span
 			>{/each}
 	</div>
 	{#each days as day (day.date)}
@@ -419,9 +481,10 @@
 			aria-label={`Availability for ${day.date}`}
 			onpointerdown={(event) => handleDayPointerDown(event, day.date, event.currentTarget)}
 		>
-			{#each hourLabels as hour (hour)}<div
+			{#each timeLabels as minutes (minutes)}<div
 					class="hour-line"
-					style={`top:${(hour / 24) * 100}%`}
+					class:minor-line={minutes % 60 !== 0}
+					style={`top:${slotTop(minutes)}%`}
 				></div>{/each}
 			{#if day.date === toDateKey(new Date())}<div
 					class="past-overlay"
@@ -489,17 +552,17 @@
 		grid-template-rows: auto var(--calendar-height);
 		height: calc(100dvh - 5rem);
 		overflow: auto;
-		border: 1px solid #d2cfc6;
+		border: 1px solid var(--border);
 		border-radius: 0.25rem;
-		background: #fff;
+		background: var(--base);
 	}
 	.corner,
 	header {
 		position: sticky;
 		top: 0;
 		z-index: 8;
-		border-bottom: 1px solid #d2cfc6;
-		background: #fff;
+		border-bottom: 1px solid var(--border);
+		background: var(--surface);
 	}
 	header {
 		display: grid;
@@ -512,30 +575,33 @@
 		text-transform: uppercase;
 	}
 	header span {
-		color: #777269;
+		color: var(--muted);
 		font-size: 0.72rem;
 	}
 	.times {
 		position: sticky;
 		left: 0;
 		z-index: 6;
-		border-right: 1px solid #d2cfc6;
-		background: #faf9f5;
+		border-right: 1px solid var(--border);
+		background: var(--surface-muted);
 	}
 	.times span {
 		position: absolute;
-		right: 0.35rem;
+		left: 0;
+		width: 100%;
+		padding: 0 0.25rem;
 		transform: translateY(-50%);
-		color: #777269;
+		color: var(--muted);
 		font-size: 0.65rem;
 		font-variant-numeric: tabular-nums;
+		text-align: center;
 	}
 	.day {
 		position: relative;
-		border-right: 1px solid #e1ded6;
+		border-right: 1px solid var(--grid);
 		touch-action: pan-y;
 		user-select: none;
-		background: #fff;
+		background: var(--base);
 	}
 	.day.dragging {
 		cursor: ns-resize;
@@ -545,8 +611,11 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		border-top: 1px solid #e4e1d9;
+		border-top: 1px solid var(--grid);
 		pointer-events: none;
+	}
+	.hour-line.minor-line {
+		opacity: 0.5;
 	}
 	.past-overlay {
 		position: absolute;
@@ -575,8 +644,17 @@
 	}
 	@media (max-width: 520px) {
 		.calendar {
-			grid-template-columns: 3.25rem repeat(var(--day-count), minmax(0, 1fr));
+			grid-template-columns: 3.75rem repeat(var(--day-count), minmax(0, 1fr));
+			height: calc(100dvh - 4.25rem);
+		}
+		:global(main.has-draft) .calendar {
 			height: calc(100dvh - 7rem);
+		}
+		.calendar.single-day .corner {
+			display: none;
+		}
+		.calendar.single-day header {
+			grid-column: 1 / -1;
 		}
 	}
 </style>

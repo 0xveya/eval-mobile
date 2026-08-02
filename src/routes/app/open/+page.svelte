@@ -1,24 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getOpenSlots } from '$lib/remote/slots.remote';
+	import { getOpenSlots, getSlotSettings } from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
 	import CalendarToolbar from '$lib/components/calendar/CalendarToolbar.svelte';
-	import { addDays, startOfDay, toDateKey } from '$lib/components/calendar/calendar-math';
+	import {
+		addDays,
+		dateAndMinutes,
+		startOfDay,
+		toDateKey
+	} from '$lib/components/calendar/calendar-math';
 	import type { CalendarSlot, DayLayout, DraftSlot } from '$lib/components/calendar/calendar-types';
 
 	let dayLayout = $state<DayLayout>('auto');
 	// Mobile-first fallback avoids rendering three columns before matchMedia runs.
 	let narrowScreen = $state(true);
-	let snapMinutes = $state(15);
-	let pixelsPerHour = $state(70);
+	const snapMinutes = 15;
+	let minimumDuration = $state(30);
+	let pixelsPerHour = $state(55);
 	let startDate = $state(startOfDay(new Date()));
 	let draft = $state<DraftSlot | null>(null);
 	let validationMessage = $state('');
 	let remoteSlotCount = $state(0);
 	let existingSlots = $state<CalendarSlot[]>([
-		makeTestSlot('slot-1', 0, 10 * 60, 11 * 60 + 30, 'Already open'),
+		makeTestSlot('slot-1', 0, 10 * 60, 11 * 60 + 30, 'Open'),
 		{ ...makeTestSlot('slot-2', 1, 14 * 60, 16 * 60, 'Booked'), status: 'booked' },
-		makeTestSlot('slot-3', 2, 18 * 60 + 30, 20 * 60, 'Already open')
+		makeTestSlot('slot-3', 2, 18 * 60 + 30, 20 * 60, 'Open')
 	]);
 
 	const visibleDayCount = $derived(dayLayout === 'auto' ? (narrowScreen ? 1 : 3) : dayLayout);
@@ -48,6 +54,12 @@
 	}
 	function confirmDraft() {
 		if (!draft) return;
+		const start = dateAndMinutes(draft.date, draft.startMinutes);
+		const end = dateAndMinutes(draft.endDate ?? draft.date, draft.endMinutes);
+		if ((end.getTime() - start.getTime()) / 60_000 < minimumDuration) {
+			validationMessage = `Your campus requires slots of at least ${minimumDuration} minutes.`;
+			return;
+		}
 		existingSlots = [...existingSlots, { id: crypto.randomUUID(), ...draft, label: 'Open slot' }];
 		clearDraft();
 	}
@@ -99,17 +111,24 @@
 			.catch(() => {
 				validationMessage = 'Could not load your slots.';
 			});
+		void getSlotSettings()
+			.then((settings) => {
+				minimumDuration = settings.minimumDurationMinutes;
+			})
+			.catch(() => {
+				// Keep the API's documented 30-minute default.
+			});
 		return () => query.removeEventListener('change', update);
 	});
 </script>
 
 <svelte:head><title>Open slots</title></svelte:head>
 
-<main>
+<main class:has-draft={draft !== null}>
 	<CalendarToolbar
 		bind:dayLayout
-		bind:snapMinutes
 		bind:pixelsPerHour
+		{minimumDuration}
 		onprevious={() => changeRange(-visibleDayCount)}
 		ontoday={goToToday}
 		onnext={() => changeRange(visibleDayCount)}
@@ -122,21 +141,18 @@
 		bind:slots={existingSlots}
 		bind:draft
 		snapInterval={snapMinutes}
+		{minimumDuration}
 		{calendarHeight}
 		onvalidation={(message) => (validationMessage = message)}
 		onedgenavigate={(direction) => (startDate = addDays(startDate, direction))}
+		onzoom={(direction) =>
+			(pixelsPerHour = Math.min(140, Math.max(35, pixelsPerHour + direction * 10)))}
 	/>
 	{#if remoteSlotCount > 0}<p class="loaded">{remoteSlotCount} fetched slots loaded</p>{/if}
 	{#if validationMessage}<p class="alert" role="alert">{validationMessage}</p>{/if}
 </main>
 
 <style>
-	:global(body) {
-		margin: 0;
-		background: #fff;
-		color: #222;
-		font-family: sans-serif;
-	}
 	main {
 		width: min(76rem, calc(100% - 2rem));
 		margin: 0 auto;
@@ -148,15 +164,29 @@
 		font-size: 0.75rem;
 	}
 	.alert {
-		margin: 0.75rem 0 0;
-		color: #a23418;
+		position: fixed;
+		top: max(0.6rem, env(safe-area-inset-top));
+		left: 50%;
+		z-index: 110;
+		width: min(28rem, calc(100% - 1rem));
+		margin: 0;
+		padding: 0.65rem 0.8rem;
+		transform: translateX(-50%);
+		border: 1px solid var(--love);
+		border-radius: 0.5rem;
+		background: var(--surface);
+		color: var(--love);
 		font-weight: 700;
 		text-align: center;
+		pointer-events: none;
 	}
 	@media (max-width: 620px) {
 		main {
 			width: min(100% - 1rem, 76rem);
-			padding: 0.5rem 0 7rem;
+			padding: 0.25rem 0 3.75rem;
+		}
+		main.has-draft {
+			padding-bottom: 6.5rem;
 		}
 	}
 </style>
