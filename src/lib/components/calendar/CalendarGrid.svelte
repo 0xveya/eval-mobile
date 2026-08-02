@@ -623,6 +623,7 @@
 	.times span {
 		position: absolute;
 		left: 0;
+		z-index: 2;
 		width: 100%;
 		padding: 0 0.25rem;
 		transform: translateY(-50%);
@@ -646,6 +647,7 @@
 		position: absolute;
 		left: 0;
 		right: 0;
+		z-index: 2;
 		border-top: 1px solid var(--grid);
 		pointer-events: none;
 	}
@@ -656,7 +658,7 @@
 		position: absolute;
 		inset: 0 0 auto;
 		z-index: 1;
-		background: color-mix(in srgb, var(--overlay) 28%, var(--base));
+		background: color-mix(in srgb, var(--overlay) 18%, transparent);
 		box-shadow: inset 0 -1px 0 var(--border);
 		pointer-events: none;
 	}
