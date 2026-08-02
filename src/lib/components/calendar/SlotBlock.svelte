@@ -180,8 +180,16 @@
 	.bottom {
 		bottom: -0.45rem;
 	}
+	.compact .top {
+		top: -0.7rem;
+	}
+	.compact .bottom {
+		bottom: -0.7rem;
+	}
 	.compact .resize span {
-		display: none;
+		width: 2.8rem;
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface) 45%, transparent);
+		opacity: 0.9;
 	}
 	.remove {
 		position: absolute;
