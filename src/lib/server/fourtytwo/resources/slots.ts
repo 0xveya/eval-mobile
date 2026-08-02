@@ -1,4 +1,5 @@
 import type { ResultAsync } from 'neverthrow';
+import * as v from 'valibot';
 import type { Request42 } from '../client/request';
 import type { FortyTwoError } from '../errors';
 import { slotsSchema, type Slots } from '../schemas';
@@ -16,11 +17,26 @@ export function slots(request: Request42) {
 				schema: slotsSchema
 			});
 		},
-		create() {
-			throw new Error('Not implemented');
+		create(input: {
+			userId: number;
+			beginAt: string;
+			endAt: string;
+		}): ResultAsync<unknown, FortyTwoError> {
+			return request({
+				method: 'POST',
+				path: '/slots',
+				body: {
+					slot: {
+						user_id: input.userId,
+						begin_at: input.beginAt,
+						end_at: input.endAt
+					}
+				},
+				schema: v.unknown()
+			});
 		},
-		delete() {
-			throw new Error('Not implemented');
+		remove(id: number): ResultAsync<null, FortyTwoError> {
+			return request({ method: 'DELETE', path: `/slots/${id}`, schema: v.null() });
 		}
 	};
 }

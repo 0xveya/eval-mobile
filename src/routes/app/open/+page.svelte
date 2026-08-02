@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
-	import { getOpenSlots, getSlotSettings } from '$lib/remote/slots.remote';
+	import {
+		createOpenSlot,
+		deleteOpenSlot,
+		getOpenSlots,
+		getSlotSettings
+	} from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
 	import CalendarToolbar from '$lib/components/calendar/CalendarToolbar.svelte';
 	import CalendarHelp from '$lib/components/calendar/CalendarHelp.svelte';
@@ -64,7 +69,7 @@
 		draft = null;
 		validationMessage = '';
 	}
-	function confirmDraft() {
+	async function confirmDraft() {
 		if (!draft) return;
 		const start = dateAndMinutes(draft.date, draft.startMinutes);
 		const end = dateAndMinutes(draft.endDate ?? draft.date, draft.endMinutes);
@@ -72,8 +77,37 @@
 			validationMessage = `Your campus requires slots of at least ${minimumDuration} minutes.`;
 			return;
 		}
-		existingSlots = [...existingSlots, { id: crypto.randomUUID(), ...draft, label: 'Open slot' }];
-		clearDraft();
+		if (useMockData) {
+			existingSlots = [...existingSlots, { id: crypto.randomUUID(), ...draft, label: 'Open slot' }];
+			clearDraft();
+			return;
+		}
+		try {
+			const slots = await createOpenSlot({
+				beginAt: start.toISOString(),
+				endAt: end.toISOString()
+			});
+			existingSlots = slots.map(fromRemoteSlot);
+			remoteSlotCount = existingSlots.length;
+			clearDraft();
+		} catch {
+			validationMessage = '42 could not open that slot.';
+		}
+	}
+
+	async function removeExistingSlot(slot: CalendarSlot): Promise<boolean> {
+		if (useMockData) return true;
+		const remoteId = Number(slot.id.replace(/^remote-/, ''));
+		if (!Number.isInteger(remoteId)) return false;
+		try {
+			const slots = await deleteOpenSlot({ id: remoteId });
+			existingSlots = slots.map(fromRemoteSlot);
+			remoteSlotCount = existingSlots.length;
+			return false;
+		} catch {
+			validationMessage = '42 could not close that slot.';
+			return false;
+		}
 	}
 	function makeTestSlot(
 		id: string,
@@ -215,6 +249,7 @@
 		onedgenavigate={(direction) => (startDate = addDays(startDate, direction))}
 		onzoom={(direction) =>
 			(pixelsPerHour = Math.min(140, Math.max(35, pixelsPerHour + direction * 10)))}
+		onremoveslot={removeExistingSlot}
 	/>
 	{#if remoteSlotCount > 0}<p class="loaded">{remoteSlotCount} fetched slots loaded</p>{/if}
 	{#if validationMessage}<p class="alert" role="alert">{validationMessage}</p>{/if}

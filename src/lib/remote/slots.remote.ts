@@ -1,13 +1,23 @@
-import { getRequestEvent, query } from '$app/server';
+import { command, getRequestEvent, query } from '$app/server';
 import { error } from '@sveltejs/kit';
+import * as v from 'valibot';
 
 import { throwApiError } from '$lib/utils/utils';
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { getValkey } from '$lib/server/valkey';
-import { cachedJson } from '$lib/server/cache';
+import { cachedJson, invalidateCachedJson } from '$lib/server/cache';
+import type { Slots } from '$lib/server/fourtytwo/schemas';
 
 const SLOT_SETTINGS_TTL_SECONDS = 6 * 60 * 60;
 const OPEN_SLOTS_TTL_SECONDS = 30;
+
+function openSlotsCacheKey(userId: number): string {
+	return `user:${userId}:open-slots`;
+}
+
+function futureSlots(slots: Slots): Slots {
+	return slots.filter((slot) => new Date(slot.end_at).getTime() > Date.now());
+}
 export const getOpenSlots = query(async () => {
 	const { locals } = getRequestEvent();
 	const session = locals.session;
@@ -15,15 +25,52 @@ export const getOpenSlots = query(async () => {
 		error(401, 'Not signed in');
 	}
 
-	return cachedJson(`user:${session.userId}:open-slots`, OPEN_SLOTS_TTL_SECONDS, async () => {
+	return cachedJson(openSlotsCacheKey(session.userId), OPEN_SLOTS_TTL_SECONDS, async () => {
 		const client = createFortyTwoClient(session.accessToken);
 		const result = await client.slots.mine();
-		return result.match(
-			(slots) => slots.filter((slot) => new Date(slot.end_at).getTime() > Date.now()),
-			(apiError) => throwApiError(apiError)
-		);
+		return result.match(futureSlots, (apiError) => throwApiError(apiError));
 	});
 });
+
+export const createOpenSlot = command(
+	v.object({ beginAt: v.string(), endAt: v.string() }),
+	async ({ beginAt, endAt }) => {
+		const session = requireSession();
+		const client = createFortyTwoClient(session.accessToken);
+		(await client.slots.create({ userId: session.userId, beginAt, endAt })).match(
+			() => undefined,
+			(apiError) => throwApiError(apiError)
+		);
+		return refreshOpenSlots(client, session.userId);
+	}
+);
+
+export const deleteOpenSlot = command(v.object({ id: v.number() }), async ({ id }) => {
+	const session = requireSession();
+	const client = createFortyTwoClient(session.accessToken);
+	(await client.slots.remove(id)).match(
+		() => undefined,
+		(apiError) => throwApiError(apiError)
+	);
+	return refreshOpenSlots(client, session.userId);
+});
+
+function requireSession() {
+	const { locals } = getRequestEvent();
+	if (!locals.session) error(401, 'Not signed in');
+	return locals.session;
+}
+
+async function refreshOpenSlots(
+	client: ReturnType<typeof createFortyTwoClient>,
+	userId: number
+): Promise<Slots> {
+	await invalidateCachedJson(openSlotsCacheKey(userId));
+	return cachedJson(openSlotsCacheKey(userId), OPEN_SLOTS_TTL_SECONDS, async () => {
+		const result = await client.slots.mine();
+		return result.match(futureSlots, (apiError) => throwApiError(apiError));
+	});
+}
 
 export const getSlotSettings = query(async () => {
 	const { locals } = getRequestEvent();

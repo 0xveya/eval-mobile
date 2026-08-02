@@ -28,7 +28,8 @@
 		calendarHeight,
 		onvalidation,
 		onedgenavigate,
-		onzoom
+		onzoom,
+		onremoveslot
 	}: {
 		days: CalendarDay[];
 		slots: CalendarSlot[];
@@ -39,6 +40,7 @@
 		onvalidation: (message: string) => void;
 		onedgenavigate: (direction: -1 | 1) => void;
 		onzoom: (direction: -1 | 1) => void;
+		onremoveslot: (slot: CalendarSlot) => Promise<boolean>;
 	} = $props();
 
 	let interaction = $state<Interaction | null>(null);
@@ -451,7 +453,12 @@
 			pendingCancellationId = id;
 			return;
 		}
-		removeSlotImmediately(id);
+		if (slot) void removeExistingSlot(slot);
+		else removeSlotImmediately(id);
+	}
+
+	async function removeExistingSlot(slot: CalendarSlot) {
+		if (await onremoveslot(slot)) removeSlotImmediately(slot.id);
 	}
 
 	function removeSlotImmediately(id: string) {
@@ -460,8 +467,9 @@
 		if (interaction && 'slotId' in interaction && interaction.slotId === id) clearInteraction();
 	}
 
-	function confirmCancellation() {
-		if (pendingCancellationId) removeSlotImmediately(pendingCancellationId);
+	async function confirmCancellation() {
+		const slot = slots.find((item) => item.id === pendingCancellationId);
+		if (slot) await removeExistingSlot(slot);
 		pendingCancellationId = null;
 	}
 
