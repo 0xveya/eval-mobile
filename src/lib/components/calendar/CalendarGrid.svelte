@@ -498,10 +498,6 @@
 			<strong>{day.label}</strong><span>{day.displayDate}</span>
 		</header>{/each}
 	<div class="times" style={`height:${calendarHeight}px`}>
-		{#if days[0]?.date === toDateKey(new Date())}<div
-				class="past-overlay"
-				style={`height:${slotTop(new Date().getHours() * 60 + new Date().getMinutes())}%`}
-			></div>{/if}
 		{#each timeLabels as minutes (minutes)}<span style={`top:${slotTop(minutes)}%`}
 				>{formatTimeLabel(minutes)}</span
 			>{/each}
