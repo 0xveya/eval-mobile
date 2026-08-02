@@ -44,10 +44,10 @@
 	.dialog {
 		width: min(22rem, 100%);
 		padding: 1rem;
-		border: 1px solid #aaa;
+		border: 1px solid var(--border);
 		border-radius: 0.4rem;
-		background: white;
-		color: #222;
+		background: var(--surface);
+		color: var(--text);
 	}
 	h2 {
 		margin: 0 0 0.4rem;
@@ -55,7 +55,7 @@
 	}
 	p {
 		margin: 0 0 1rem;
-		color: #555;
+		color: var(--muted);
 		font-size: 0.9rem;
 	}
 	.actions {
@@ -66,10 +66,10 @@
 	button {
 		min-height: 2.4rem;
 		padding: 0 0.8rem;
-		border: 1px solid #999;
+		border: 1px solid var(--border);
 		border-radius: 0.25rem;
-		background: white;
-		color: #222;
+		background: var(--surface);
+		color: var(--text);
 		font-weight: 700;
 	}
 	.danger {
