@@ -10,6 +10,7 @@ export type CalendarSlot = {
 	status?: 'open' | 'booked';
 	remote?: boolean;
 	remoteIds?: number[];
+	scaleTeamId?: number;
 };
 
 export type DraftSlot = Omit<CalendarSlot, 'id' | 'label'>;

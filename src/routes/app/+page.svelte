@@ -2,8 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { env } from '$env/dynamic/public';
 	import { onMount } from 'svelte';
-	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import { getBookableTeams } from '$lib/remote/account.remote';
+	import { getBookableTeams, getUpcomingEvaluations } from '$lib/remote/account.remote';
 
 	let { data } = $props();
 
@@ -13,7 +12,7 @@
 		projectSlug: string;
 		person: string;
 		direction: 'outgoing' | 'incoming';
-		minutes: number;
+		beginAt: string;
 	};
 
 	const mockEvaluations: Evaluation[] = [
@@ -23,7 +22,7 @@
 			projectSlug: '42cursus-minishell',
 			person: 'peer_login',
 			direction: 'outgoing',
-			minutes: 12
+			beginAt: new Date(Date.now() + 12 * 60_000).toISOString()
 		},
 		{
 			id: 'libft',
@@ -31,7 +30,7 @@
 			projectSlug: '42cursus-libft',
 			person: 'evaluator42',
 			direction: 'incoming',
-			minutes: 3
+			beginAt: new Date(Date.now() + 3 * 60_000).toISOString()
 		}
 	];
 	const mockProjects = [
@@ -41,16 +40,37 @@
 	const useMockData = env.PUBLIC_USE_MOCK_DATA === 'true';
 	let evaluations = $state<Evaluation[]>(useMockData ? mockEvaluations : []);
 	let projects = $state(useMockData ? mockProjects : []);
-	let cancelId = $state<string | null>(null);
-	const cancelTarget = $derived(evaluations.find((evaluation) => evaluation.id === cancelId));
-
-	function cancelEvaluation() {
-		evaluations = evaluations.filter((evaluation) => evaluation.id !== cancelId);
-		cancelId = null;
+	let clock = $state(Date.now());
+	function minutesUntil(beginAt: string) {
+		return Math.max(0, Math.ceil((Date.parse(beginAt) - clock) / 60_000));
+	}
+	function shownPerson(evaluation: Evaluation) {
+		if (minutesUntil(evaluation.beginAt) > 15) return 'Hidden until 15 min before';
+		return evaluation.person;
+	}
+	function personIsVisible(evaluation: Evaluation) {
+		return !shownPerson(evaluation).startsWith('Hidden');
+	}
+	async function refreshEvaluations() {
+		try {
+			const upcoming = await getUpcomingEvaluations();
+			evaluations = upcoming.map((evaluation) => ({
+				...evaluation,
+				projectSlug:
+					evaluation.projectSlug ?? (evaluation.projectId ? String(evaluation.projectId) : '')
+			}));
+		} catch {
+			// Keep the last successful result during a temporary API failure.
+		}
 	}
 
 	onMount(() => {
-		if (useMockData) return;
+		const timer = window.setInterval(() => {
+			clock = Date.now();
+			if (!useMockData) void refreshEvaluations();
+		}, 30_000);
+		if (useMockData) return () => window.clearInterval(timer);
+		void refreshEvaluations();
 		void getBookableTeams()
 			.then((teams) => {
 				projects = teams.map((team) => ({ id: String(team.id), name: team.name }));
@@ -58,6 +78,7 @@
 			.catch(() => {
 				projects = [];
 			});
+		return () => window.clearInterval(timer);
 	});
 </script>
 
@@ -75,37 +96,30 @@
 			{#each evaluations as evaluation (evaluation.id)}
 				<li class:incoming={evaluation.direction === 'incoming'}>
 					<span class="marker" aria-hidden="true"></span>
-					<div class="event-copy">
-						<a
-							class="project-link"
-							href="https://projects.intra.42.fr/projects/{evaluation.projectSlug}"
-							target="_blank"
-							rel="noreferrer">{evaluation.project}</a
-						>
-						<small>
-							{evaluation.direction === 'outgoing' ? 'You evaluate ' : ''}
-							<a
-								href="https://profile.intra.42.fr/users/{evaluation.person}"
-								target="_blank"
-								rel="noreferrer">{evaluation.person}</a
-							>{evaluation.direction === 'incoming' ? ' evaluates you' : ''}
-						</small>
-					</div>
-					<div class="event-actions">
-						<b>in {evaluation.minutes} min</b>
-						{#if evaluation.minutes <= 15}
-							<a
+					<p class="evaluation-sentence">
+						{#if evaluation.direction === 'outgoing'}
+							You will evaluate
+							{#if personIsVisible(evaluation)}<a
+									href="https://profile.intra.42.fr/users/{evaluation.person}"
+									target="_blank"
+									rel="noreferrer">{shownPerson(evaluation)}</a
+								>{:else}<span>{shownPerson(evaluation)}</span>{/if}
+						{:else}
+							{#if personIsVisible(evaluation)}<a
+									href="https://profile.intra.42.fr/users/{evaluation.person}"
+									target="_blank"
+									rel="noreferrer">{shownPerson(evaluation)}</a
+								>{:else}<span>{shownPerson(evaluation)}</span>{/if}
+							will evaluate you
+						{/if}
+						on
+						{#if evaluation.projectSlug}<a
 								href="https://projects.intra.42.fr/projects/{evaluation.projectSlug}"
 								target="_blank"
-								rel="noreferrer">Open Intra ↗</a
-							>
-						{/if}
-					</div>
-					{#if evaluation.minutes <= 4}
-						<button class="cancel" type="button" onclick={() => (cancelId = evaluation.id)}
-							>Cancel</button
-						>
-					{/if}
+								rel="noreferrer">{evaluation.project}</a
+							>{:else}<strong>{evaluation.project}</strong>{/if}
+						in <b>{minutesUntil(evaluation.beginAt)} min</b>.
+					</p>
 				</li>
 			{/each}
 			{#if evaluations.length === 0}<li class="empty">No upcoming evaluations.</li>{/if}
@@ -130,22 +144,6 @@
 	<a href={resolve('/app/open')}>Manage slots</a>
 </nav>
 
-{#if cancelId}
-	<ConfirmDialog
-		title={cancelTarget?.direction === 'incoming'
-			? 'Find another evaluator?'
-			: 'Cancel evaluation?'}
-		message={cancelTarget?.direction === 'incoming'
-			? 'This cancels with this evaluator so someone else can take the evaluation.'
-			: 'This removes the evaluation you were scheduled to give.'}
-		confirmLabel={cancelTarget?.direction === 'incoming'
-			? 'Find someone else'
-			: 'Cancel evaluation'}
-		onconfirm={cancelEvaluation}
-		oncancel={() => (cancelId = null)}
-	/>
-{/if}
-
 <style>
 	main {
 		width: min(34rem, calc(100% - 1.25rem));
@@ -159,8 +157,7 @@
 		gap: 1rem;
 		margin-bottom: 1.1rem;
 	}
-	header span,
-	small {
+	header span {
 		color: var(--muted);
 	}
 	header span {
@@ -192,7 +189,7 @@
 	}
 	.evaluation-list li:not(.empty) {
 		display: grid;
-		grid-template-columns: 0.25rem minmax(0, 1fr) auto auto;
+		grid-template-columns: 0.25rem minmax(0, 1fr);
 		align-items: center;
 		gap: 0.65rem;
 		min-height: 3.75rem;
@@ -206,52 +203,26 @@
 	.incoming .marker {
 		background: var(--iris);
 	}
-	.evaluation-list small {
-		display: block;
+	.evaluation-sentence {
+		min-width: 0;
+		margin: 0;
+		font-size: 0.8rem;
+		line-height: 1.45;
 	}
-	.project-link {
-		font-size: 0.85rem;
-	}
-	.project-link,
-	small a {
+	.evaluation-sentence a {
 		color: var(--text);
 		font-weight: 750;
 		text-decoration-color: var(--border);
 		text-underline-offset: 0.15rem;
 	}
-	small a {
+	.evaluation-sentence a:first-of-type {
 		color: var(--iris);
 	}
-	small {
-		margin-top: 0.12rem;
-		font-size: 0.68rem;
-	}
-	.event-actions {
-		display: grid;
-		justify-items: end;
-		gap: 0.15rem;
-		white-space: nowrap;
-	}
-	.event-actions b {
-		font-size: 0.7rem;
-	}
-	.event-actions a,
 	.projects a {
 		color: var(--iris);
 		font-size: 0.68rem;
 		font-weight: 750;
 		text-decoration: none;
-	}
-	button.cancel {
-		min-height: 2.15rem;
-		padding: 0 0.55rem;
-		border: 1px solid var(--love);
-		border-radius: 0.4rem;
-		background: transparent;
-		color: var(--love);
-		font: inherit;
-		font-size: 0.68rem;
-		font-weight: 750;
 	}
 	.empty {
 		display: block;
@@ -305,15 +276,5 @@
 		font-size: 0.78rem;
 		font-weight: 750;
 		text-decoration: none;
-	}
-	@media (max-width: 390px) {
-		.evaluation-list li:not(.empty) {
-			grid-template-columns: 0.25rem minmax(0, 1fr) auto;
-		}
-		button.cancel {
-			grid-column: 2 / -1;
-			justify-self: end;
-			margin-top: -0.25rem;
-		}
 	}
 </style>

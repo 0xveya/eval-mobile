@@ -1,17 +1,35 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
 	import TouchLeewayToggle from './TouchLeewayToggle.svelte';
 
 	let appMenu: HTMLDetailsElement;
+	let lastPathname = $state('');
+
+	$effect(() => {
+		const pathname = page.url.pathname;
+		if (lastPathname && pathname !== lastPathname && appMenu) appMenu.open = false;
+		lastPathname = pathname;
+	});
 
 	onMount(() => {
 		const closeAway = (event: PointerEvent) => {
 			if (appMenu.open && !appMenu.contains(event.target as Node)) appMenu.open = false;
 		};
+		const closeOnEscape = (event: KeyboardEvent) => {
+			if (event.key === 'Escape' && appMenu.open) {
+				appMenu.open = false;
+				appMenu.querySelector<HTMLElement>('summary')?.focus();
+			}
+		};
 		document.addEventListener('pointerdown', closeAway);
-		return () => document.removeEventListener('pointerdown', closeAway);
+		document.addEventListener('keydown', closeOnEscape);
+		return () => {
+			document.removeEventListener('pointerdown', closeAway);
+			document.removeEventListener('keydown', closeOnEscape);
+		};
 	});
 </script>
 

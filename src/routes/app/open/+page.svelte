@@ -83,7 +83,8 @@
 			label: slot.label,
 			status: slot.status,
 			remote: slot.remote,
-			remoteIds: slot.remoteIds ? [...slot.remoteIds] : undefined
+			remoteIds: slot.remoteIds ? [...slot.remoteIds] : undefined,
+			scaleTeamId: slot.scaleTeamId
 		};
 		draft = {
 			date: slot.date,
@@ -219,8 +220,11 @@
 			const mapped = fromRemoteSlot(slot);
 			const previous = groups.at(-1);
 			if (
-				mapped.status === 'open' &&
-				previous?.status === 'open' &&
+				previous &&
+				previous.status === mapped.status &&
+				(mapped.status === 'open' ||
+					mapped.scaleTeamId === undefined ||
+					previous.scaleTeamId === mapped.scaleTeamId) &&
 				dateAndMinutes(previous.endDate ?? previous.date, previous.endMinutes).getTime() ===
 					Date.parse(slot.begin_at)
 			) {
@@ -247,7 +251,14 @@
 			label: booked ? 'Booked' : 'Open',
 			status: booked ? 'booked' : 'open',
 			remote: true,
-			remoteIds: [slot.id]
+			remoteIds: [slot.id],
+			scaleTeamId:
+				typeof slot.scale_team === 'object' &&
+				slot.scale_team !== null &&
+				'id' in slot.scale_team &&
+				typeof slot.scale_team.id === 'number'
+					? slot.scale_team.id
+					: undefined
 		};
 	}
 

@@ -35,6 +35,14 @@ export const campusSchema = v.looseObject({
 
 export type Campus = v.InferOutput<typeof campusSchema>;
 
+export const projectSchema = v.looseObject({
+	id: v.number(),
+	name: v.string(),
+	slug: v.string()
+});
+
+export type Project = v.InferOutput<typeof projectSchema>;
+
 const teamUserSchema = v.looseObject({
 	id: v.number(),
 	login: v.string(),
@@ -87,3 +95,32 @@ export const slotsSchema = v.array(slotSchema);
 
 export type Slot = v.InferOutput<typeof slotSchema>;
 export type Slots = v.InferOutput<typeof slotsSchema>;
+
+const scaleTeamUserSchema = v.looseObject({
+	id: v.number(),
+	login: v.string()
+});
+
+export const scaleTeamSchema = v.looseObject({
+	id: v.number(),
+	begin_at: v.string(),
+	correcteds: v.union([v.array(scaleTeamUserSchema), v.literal('invisible')]),
+	corrector: v.nullable(v.optional(scaleTeamUserSchema)),
+	team: v.optional(
+		v.looseObject({
+			id: v.number(),
+			name: v.string(),
+			project_id: v.number()
+		})
+	),
+	scale: v.optional(
+		v.looseObject({
+			id: v.number(),
+			name: v.string(),
+			evaluation_id: v.number()
+		})
+	)
+});
+
+export const scaleTeamsSchema = v.array(scaleTeamSchema);
+export type ScaleTeam = v.InferOutput<typeof scaleTeamSchema>;
