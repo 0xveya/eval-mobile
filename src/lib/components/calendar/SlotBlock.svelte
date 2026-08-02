@@ -158,7 +158,7 @@
 		left: 0.3rem;
 		right: 0.3rem;
 		z-index: 2;
-		height: 1.5rem;
+		height: 1rem;
 		padding: 0;
 		border: 0;
 		background: transparent;
@@ -166,25 +166,30 @@
 		touch-action: none;
 	}
 	.resize span {
+		position: absolute;
+		left: 50%;
 		display: block;
 		width: 2.5rem;
 		height: 2px;
-		margin: auto;
+		transform: translateX(-50%);
 		border-radius: 1rem;
 		background: currentColor;
 		opacity: 0.7;
 	}
 	.top {
-		top: -0.45rem;
+		bottom: 100%;
 	}
 	.bottom {
-		bottom: -0.45rem;
+		top: 100%;
 	}
-	.compact .top {
-		top: -0.7rem;
+	.top span {
+		bottom: -1px;
 	}
-	.compact .bottom {
-		bottom: -0.7rem;
+	.bottom span {
+		top: -1px;
+	}
+	:global(html.extra-touch-leeway) .resize {
+		height: 2.75rem;
 	}
 	.compact .resize span {
 		width: 2.8rem;

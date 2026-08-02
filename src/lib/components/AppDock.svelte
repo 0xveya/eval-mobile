@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import TouchLeewayToggle from './TouchLeewayToggle.svelte';
 
 	let appMenu: HTMLDetailsElement;
 
@@ -33,6 +34,7 @@
 				Home
 			</a>
 			<ThemeToggle />
+			<TouchLeewayToggle />
 			<a href={resolve('/logout')}>
 				<svg viewBox="0 0 24 24" aria-hidden="true"
 					><path d="M10 5H4v14h6M14 8l4 4-4 4M8 12h10"></path></svg
@@ -74,7 +76,7 @@
 		bottom: calc(100% + 0.4rem);
 		display: grid;
 		gap: 0.2rem;
-		width: 10rem;
+		width: 11rem;
 		padding: 0.35rem;
 		border: 1px solid var(--border);
 		border-radius: 0.6rem;
