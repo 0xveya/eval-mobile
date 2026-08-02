@@ -14,10 +14,7 @@ export const getOpenSlots = query(async () => {
 	const result = await client.slots.mine();
 
 	return result.match(
-		(slots) =>
-			slots.filter(
-				(slot) => slot.scale_team === null && new Date(slot.end_at).getTime() > Date.now()
-			),
+		(slots) => slots.filter((slot) => new Date(slot.end_at).getTime() > Date.now()),
 		(apiError) => throwApiError(apiError)
 	);
 });
