@@ -4,36 +4,45 @@ import { error } from '@sveltejs/kit';
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { throwApiError } from '$lib/utils/utils';
 import type { Team } from '$lib/server/fourtytwo/schemas';
+import { cachedJson } from '$lib/server/cache';
 
 type FortyTwoClient = ReturnType<typeof createFortyTwoClient>;
+const USER_TTL_SECONDS = 15 * 60;
+const BOOKABLE_TEAMS_TTL_SECONDS = 2 * 60;
 
 export const getCurrentUser = query(async () => {
 	const { locals } = getRequestEvent();
-
-	if (!locals.session) {
+	const session = locals.session;
+	if (!session) {
 		error(401, 'Not signed in');
 	}
 
-	const client = createFortyTwoClient(locals.session.accessToken);
-	const result = await client.users.me();
-
-	return result.match(
-		(user) => user,
-		(apiError) => throwApiError(apiError)
-	);
+	return cachedJson(`user:${session.userId}:me`, USER_TTL_SECONDS, async () => {
+		const client = createFortyTwoClient(session.accessToken);
+		const result = await client.users.me();
+		return result.match(
+			(user) => user,
+			(apiError) => throwApiError(apiError)
+		);
+	});
 });
 
 export const getBookableTeams = query(async () => {
 	const { locals } = getRequestEvent();
-
-	if (!locals.session) {
+	const session = locals.session;
+	if (!session) {
 		error(401, 'Not signed in');
 	}
 
-	const client = createFortyTwoClient(locals.session.accessToken);
-	const teams = await getAllCurrentUserTeams(client);
-
-	return teams.filter(isOpen).filter(isSubmitted).filter(isUnlocked).filter(isNotValidated);
+	return cachedJson(
+		`user:${session.userId}:bookable-teams`,
+		BOOKABLE_TEAMS_TTL_SECONDS,
+		async () => {
+			const client = createFortyTwoClient(session.accessToken);
+			const teams = await getAllCurrentUserTeams(client);
+			return teams.filter(isOpen).filter(isSubmitted).filter(isUnlocked).filter(isNotValidated);
+		}
+	);
 });
 
 async function getAllCurrentUserTeams(client: FortyTwoClient): Promise<Team[]> {

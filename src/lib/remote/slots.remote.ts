@@ -4,22 +4,25 @@ import { error } from '@sveltejs/kit';
 import { throwApiError } from '$lib/utils/utils';
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { getValkey } from '$lib/server/valkey';
+import { cachedJson } from '$lib/server/cache';
 
 const SLOT_SETTINGS_TTL_SECONDS = 6 * 60 * 60;
+const OPEN_SLOTS_TTL_SECONDS = 30;
 export const getOpenSlots = query(async () => {
 	const { locals } = getRequestEvent();
-
-	if (!locals.session) {
+	const session = locals.session;
+	if (!session) {
 		error(401, 'Not signed in');
 	}
 
-	const client = createFortyTwoClient(locals.session.accessToken);
-	const result = await client.slots.mine();
-
-	return result.match(
-		(slots) => slots.filter((slot) => new Date(slot.end_at).getTime() > Date.now()),
-		(apiError) => throwApiError(apiError)
-	);
+	return cachedJson(`user:${session.userId}:open-slots`, OPEN_SLOTS_TTL_SECONDS, async () => {
+		const client = createFortyTwoClient(session.accessToken);
+		const result = await client.slots.mine();
+		return result.match(
+			(slots) => slots.filter((slot) => new Date(slot.end_at).getTime() > Date.now()),
+			(apiError) => throwApiError(apiError)
+		);
+	});
 });
 
 export const getSlotSettings = query(async () => {
