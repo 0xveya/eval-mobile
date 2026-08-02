@@ -1,5 +1,5 @@
-import { env } from '$env/dynamic/private';
 import { getValkey } from '$lib/server/valkey';
+import { config } from '$lib/server/env';
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 
@@ -12,8 +12,8 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const authorizeUrl = new URL('https://api.intra.42.fr/oauth/authorize');
 	authorizeUrl.search = new URLSearchParams({
-		client_id: env.FORTYTWO_CLIENT_ID,
-		redirect_uri: env.FORTYTWO_REDIRECT_URI,
+		client_id: config.fortyTwoClientId(),
+		redirect_uri: config.fortyTwoRedirectUri(),
 		response_type: 'code',
 		scope: 'public projects',
 		state

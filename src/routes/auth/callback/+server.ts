@@ -1,5 +1,5 @@
-import { env } from '$env/dynamic/private';
 import { getValkey } from '$lib/server/valkey';
+import { config } from '$lib/server/env';
 import { exchangeCode } from '$lib/server/fourtytwo/oauth';
 import { createFortyTwoClient } from '$lib/server/fourtytwo/client';
 import { error, redirect } from '@sveltejs/kit';
@@ -29,9 +29,9 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 	const oauthState = parseOAuthState(stateValue);
 
 	const tokenResult = await exchangeCode({
-		clientId: env.FORTYTWO_CLIENT_ID,
-		clientSecret: env.FORTYTWO_CLIENT_SECRET,
-		redirectUri: env.FORTYTWO_REDIRECT_URI,
+		clientId: config.fortyTwoClientId(),
+		clientSecret: config.fortyTwoClientSecret(),
+		redirectUri: config.fortyTwoRedirectUri(),
 		code
 	});
 
