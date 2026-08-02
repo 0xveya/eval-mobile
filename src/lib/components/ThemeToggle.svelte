@@ -41,10 +41,10 @@
 <style>
 	.theme-toggle {
 		display: grid;
-		place-items: center;
+		align-items: center;
+		justify-items: start;
 		width: 100%;
 		height: 2.25rem;
-		justify-content: start;
 		grid-template-columns: 1.15rem 1fr;
 		gap: 0.5rem;
 		padding: 0 0.65rem;

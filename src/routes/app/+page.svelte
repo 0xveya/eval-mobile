@@ -7,17 +7,31 @@
 	type Evaluation = {
 		id: string;
 		project: string;
+		projectSlug: string;
 		person: string;
 		direction: 'outgoing' | 'incoming';
 		minutes: number;
 	};
 
 	let evaluations = $state<Evaluation[]>([
-		{ id: 'peer', project: 'minishell', person: 'peer_login', direction: 'outgoing', minutes: 12 },
-		{ id: 'libft', project: 'Libft', person: 'evaluator42', direction: 'incoming', minutes: 3 }
+		{
+			id: 'peer',
+			project: 'minishell',
+			projectSlug: '42cursus-minishell',
+			person: 'peer_login',
+			direction: 'outgoing',
+			minutes: 12
+		},
+		{
+			id: 'libft',
+			project: 'Libft',
+			projectSlug: '42cursus-libft',
+			person: 'evaluator42',
+			direction: 'incoming',
+			minutes: 3
+		}
 	]);
 	let cancelId = $state<string | null>(null);
-	const intraUrl = 'https://projects.intra.42.fr/';
 	const cancelTarget = $derived(evaluations.find((evaluation) => evaluation.id === cancelId));
 
 	const projects = [
@@ -48,7 +62,7 @@
 					<div class="event-copy">
 						<a
 							class="project-link"
-							href="https://projects.intra.42.fr/projects/{evaluation.project}"
+							href="https://projects.intra.42.fr/projects/{evaluation.projectSlug}"
 							target="_blank"
 							rel="noreferrer">{evaluation.project}</a
 						>
@@ -64,7 +78,11 @@
 					<div class="event-actions">
 						<b>in {evaluation.minutes} min</b>
 						{#if evaluation.minutes <= 15}
-							<a href={intraUrl} target="_blank" rel="noreferrer">Open Intra ↗</a>
+							<a
+								href="https://projects.intra.42.fr/projects/{evaluation.projectSlug}"
+								target="_blank"
+								rel="noreferrer">Open Intra ↗</a
+							>
 						{/if}
 					</div>
 					{#if evaluation.minutes <= 4}
