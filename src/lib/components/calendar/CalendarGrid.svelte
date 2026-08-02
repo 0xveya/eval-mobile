@@ -46,6 +46,7 @@
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let pointerStartX = 0;
 	let pointerStartY = 0;
+	let interactionMoved = false;
 	let calendarElement: HTMLElement;
 	let lastEdgeNavigation = 0;
 	let pendingCancellationId = $state<string | null>(null);
@@ -142,6 +143,7 @@
 
 	function handleDayPointerDown(event: PointerEvent, date: string, day: HTMLElement) {
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		if (draft) return;
 		pointerStartX = event.clientX;
 		pointerStartY = event.clientY;
 		onvalidation('');
@@ -161,6 +163,7 @@
 		if (problem) return onvalidation(problem);
 		clearLongPress();
 		interaction = { type: 'create', pointerId: event.pointerId, anchorDate: date, anchorMinutes };
+		interactionMoved = true;
 		gesture = {
 			pointerId: event.pointerId,
 			pointerType: event.pointerType,
@@ -183,7 +186,7 @@
 				const [first, second] = [...touchPoints.values()];
 				const distance = Math.hypot(first.x - second.x, first.y - second.y);
 				if (Math.abs(distance - pinchDistance) >= 12) {
-					onzoom(distance > pinchDistance ? 1 : -1);
+					zoomAround(distance > pinchDistance ? 1 : -1, (first.y + second.y) / 2);
 					pinchDistance = distance;
 				}
 				event.preventDefault();
@@ -196,6 +199,13 @@
 			return;
 		}
 		if (!interaction || interaction.pointerId !== event.pointerId) return;
+		if (
+			interaction.type !== 'create' &&
+			!interactionMoved &&
+			Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY) < 9
+		)
+			return;
+		interactionMoved = true;
 		event.preventDefault();
 		autoScroll(event);
 		navigateAtEdge(event);
@@ -279,7 +289,18 @@
 	function handleWheel(event: WheelEvent) {
 		if (!event.ctrlKey) return;
 		event.preventDefault();
-		onzoom(event.deltaY < 0 ? 1 : -1);
+		zoomAround(event.deltaY < 0 ? 1 : -1, event.clientY);
+	}
+
+	function zoomAround(direction: -1 | 1, clientY: number) {
+		const rect = calendarElement.getBoundingClientRect();
+		const focalY = Math.min(Math.max(clientY - rect.top, 0), rect.height);
+		const oldScrollHeight = calendarElement.scrollHeight;
+		const focalRatio = (calendarElement.scrollTop + focalY) / oldScrollHeight;
+		onzoom(direction);
+		requestAnimationFrame(() => {
+			calendarElement.scrollTop = focalRatio * calendarElement.scrollHeight - focalY;
+		});
 	}
 
 	function autoScroll(event: PointerEvent) {
@@ -309,6 +330,9 @@
 	) {
 		event.stopPropagation();
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		pointerStartX = event.clientX;
+		pointerStartY = event.clientY;
+		interactionMoved = false;
 		const day = element.parentElement as HTMLElement;
 		const pointerMinutes = minutesFromPointer(event, day, snapInterval);
 		const pointerDate = dateAndMinutes(day.dataset.date ?? slot.date, pointerMinutes);
@@ -345,6 +369,9 @@
 	) {
 		event.stopPropagation();
 		if (event.pointerType === 'mouse' && event.button !== 0) return;
+		pointerStartX = event.clientX;
+		pointerStartY = event.clientY;
+		interactionMoved = false;
 		interaction = { type: 'resize', pointerId: event.pointerId, slotId: id, edge };
 		const edgeDate = edge === 'start' ? slot.date : (slot.endDate ?? slot.date);
 		const minutes = edge === 'start' ? slot.startMinutes : slot.endMinutes;
@@ -409,6 +436,7 @@
 	function clearInteraction() {
 		interaction = null;
 		gesture = null;
+		interactionMoved = false;
 		clearLongPress();
 	}
 
@@ -470,6 +498,10 @@
 			<strong>{day.label}</strong><span>{day.displayDate}</span>
 		</header>{/each}
 	<div class="times" style={`height:${calendarHeight}px`}>
+		{#if days[0]?.date === toDateKey(new Date())}<div
+				class="past-overlay"
+				style={`height:${slotTop(new Date().getHours() * 60 + new Date().getMinutes())}%`}
+			></div>{/if}
 		{#each timeLabels as minutes (minutes)}<span style={`top:${slotTop(minutes)}%`}
 				>{formatTimeLabel(minutes)}</span
 			>{/each}
@@ -624,7 +656,8 @@
 		position: absolute;
 		inset: 0 0 auto;
 		z-index: 1;
-		background: rgb(59 54 46 / 5%);
+		background: color-mix(in srgb, var(--overlay) 28%, var(--base));
+		box-shadow: inset 0 -1px 0 var(--border);
 		pointer-events: none;
 	}
 	.current-time {
