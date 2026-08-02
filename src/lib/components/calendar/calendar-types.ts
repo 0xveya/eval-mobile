@@ -3,9 +3,12 @@ export const MINUTES_PER_DAY = 24 * 60;
 export type CalendarSlot = {
 	id: string;
 	date: string;
+	endDate?: string;
 	startMinutes: number;
 	endMinutes: number;
 	label: string;
+	status?: 'open' | 'booked';
+	remote?: boolean;
 };
 
 export type DraftSlot = Omit<CalendarSlot, 'id' | 'label'>;
