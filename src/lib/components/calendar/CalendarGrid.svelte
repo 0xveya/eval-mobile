@@ -657,8 +657,8 @@
 	.past-overlay {
 		position: absolute;
 		inset: 0 0 auto;
-		z-index: 1;
-		background: color-mix(in srgb, var(--overlay) 18%, transparent);
+		z-index: 4;
+		background: color-mix(in srgb, var(--overlay) 90%, transparent);
 		box-shadow: inset 0 -1px 0 var(--border);
 		pointer-events: none;
 	}
@@ -666,7 +666,7 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		z-index: 2;
+		z-index: 5;
 		border-top: 2px solid #e15a32;
 		pointer-events: none;
 	}
