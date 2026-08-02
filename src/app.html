@@ -9,7 +9,7 @@
 				if (localStorage.getItem('eval-mobile-theme') === 'dark') {
 					document.documentElement.classList.add('dark');
 				}
-				if (localStorage.getItem('eval-mobile-touch-leeway') === 'on') {
+				if (localStorage.getItem('eval-mobile-touch-leeway') !== 'off') {
 					document.documentElement.classList.add('extra-touch-leeway');
 				}
 			} catch {}

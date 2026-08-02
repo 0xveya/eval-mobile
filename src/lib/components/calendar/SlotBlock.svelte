@@ -155,10 +155,11 @@
 	}
 	.resize {
 		position: absolute;
-		left: 0.3rem;
-		right: 0.3rem;
+		left: 50%;
 		z-index: 2;
+		width: min(8rem, 70%);
 		height: 1rem;
+		transform: translateX(-50%);
 		padding: 0;
 		border: 0;
 		background: transparent;
@@ -189,7 +190,8 @@
 		top: -1px;
 	}
 	:global(html.extra-touch-leeway) .resize {
-		height: 2.75rem;
+		width: min(12rem, 82%);
+		height: 2.25rem;
 	}
 	.compact .resize span {
 		width: 2.8rem;
