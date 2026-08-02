@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { env } from '$env/dynamic/public';
+	import { onMount } from 'svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import { getBookableTeams } from '$lib/remote/account.remote';
 
 	let { data } = $props();
 
@@ -13,7 +16,7 @@
 		minutes: number;
 	};
 
-	let evaluations = $state<Evaluation[]>([
+	const mockEvaluations: Evaluation[] = [
 		{
 			id: 'peer',
 			project: 'minishell',
@@ -30,19 +33,32 @@
 			direction: 'incoming',
 			minutes: 3
 		}
-	]);
-	let cancelId = $state<string | null>(null);
-	const cancelTarget = $derived(evaluations.find((evaluation) => evaluation.id === cancelId));
-
-	const projects = [
+	];
+	const mockProjects = [
 		{ id: 'libft', name: 'Libft' },
 		{ id: 'minishell', name: 'minishell' }
 	];
+	const useMockData = env.PUBLIC_USE_MOCK_DATA === 'true';
+	let evaluations = $state<Evaluation[]>(useMockData ? mockEvaluations : []);
+	let projects = $state(useMockData ? mockProjects : []);
+	let cancelId = $state<string | null>(null);
+	const cancelTarget = $derived(evaluations.find((evaluation) => evaluation.id === cancelId));
 
 	function cancelEvaluation() {
 		evaluations = evaluations.filter((evaluation) => evaluation.id !== cancelId);
 		cancelId = null;
 	}
+
+	onMount(() => {
+		if (useMockData) return;
+		void getBookableTeams()
+			.then((teams) => {
+				projects = teams.map((team) => ({ id: String(team.id), name: team.name }));
+			})
+			.catch(() => {
+				projects = [];
+			});
+	});
 </script>
 
 <svelte:head><title>Dashboard</title></svelte:head>
@@ -105,6 +121,7 @@
 					<a href={resolve(`/app/evaluations?project=${project.id}`)}>Book evaluation</a>
 				</li>
 			{/each}
+			{#if projects.length === 0}<li class="empty">No projects are ready to book.</li>{/if}
 		</ul>
 	</section>
 </main>
@@ -173,7 +190,7 @@
 	li:last-child {
 		border-bottom: 0;
 	}
-	.evaluation-list li {
+	.evaluation-list li:not(.empty) {
 		display: grid;
 		grid-template-columns: 0.25rem minmax(0, 1fr) auto auto;
 		align-items: center;
@@ -237,9 +254,13 @@
 		font-weight: 750;
 	}
 	.empty {
-		padding: 1rem;
+		display: block;
+		width: 100%;
+		box-sizing: border-box;
+		padding: 0.9rem 1rem;
 		color: var(--muted);
 		font-size: 0.75rem;
+		line-height: 1.4;
 	}
 	.projects {
 		margin-top: 1.2rem;
@@ -286,7 +307,7 @@
 		text-decoration: none;
 	}
 	@media (max-width: 390px) {
-		.evaluation-list li {
+		.evaluation-list li:not(.empty) {
 			grid-template-columns: 0.25rem minmax(0, 1fr) auto;
 		}
 		button.cancel {

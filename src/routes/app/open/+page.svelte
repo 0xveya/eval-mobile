@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { env } from '$env/dynamic/public';
 	import { getOpenSlots, getSlotSettings } from '$lib/remote/slots.remote';
 	import CalendarGrid from '$lib/components/calendar/CalendarGrid.svelte';
 	import CalendarToolbar from '$lib/components/calendar/CalendarToolbar.svelte';
@@ -21,11 +22,16 @@
 	let draft = $state<DraftSlot | null>(null);
 	let validationMessage = $state('');
 	let remoteSlotCount = $state(0);
-	let existingSlots = $state<CalendarSlot[]>([
-		makeTestSlot('slot-1', 0, 10 * 60, 11 * 60 + 30, 'Open'),
-		{ ...makeTestSlot('slot-2', 1, 14 * 60, 16 * 60, 'Booked'), status: 'booked' },
-		makeTestSlot('slot-3', 2, 18 * 60 + 30, 20 * 60, 'Open')
-	]);
+	const useMockData = env.PUBLIC_USE_MOCK_DATA === 'true';
+	let existingSlots = $state<CalendarSlot[]>(
+		useMockData
+			? [
+					makeTestSlot('slot-1', 0, 10 * 60, 11 * 60 + 30, 'Open'),
+					{ ...makeTestSlot('slot-2', 1, 14 * 60, 16 * 60, 'Booked'), status: 'booked' },
+					makeTestSlot('slot-3', 2, 18 * 60 + 30, 20 * 60, 'Open')
+				]
+			: []
+	);
 
 	const visibleDayCount = $derived(dayLayout === 'auto' ? (narrowScreen ? 1 : 3) : dayLayout);
 	const calendarHeight = $derived(24 * pixelsPerHour);
@@ -102,15 +108,17 @@
 		};
 		update();
 		query.addEventListener('change', update);
-		void getOpenSlots()
-			.then((remoteSlots) => {
-				const fetched = remoteSlots.map(fromRemoteSlot);
-				remoteSlotCount = fetched.length;
-				existingSlots = [...existingSlots.filter((slot) => !slot.remote), ...fetched];
-			})
-			.catch(() => {
-				validationMessage = 'Could not load your slots.';
-			});
+		if (!useMockData) {
+			void getOpenSlots()
+				.then((remoteSlots) => {
+					const fetched = remoteSlots.map(fromRemoteSlot);
+					remoteSlotCount = fetched.length;
+					existingSlots = fetched;
+				})
+				.catch(() => {
+					validationMessage = 'Could not load your slots.';
+				});
+		}
 		void getSlotSettings()
 			.then((settings) => {
 				minimumDuration = settings.minimumDurationMinutes;
