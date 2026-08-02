@@ -10,8 +10,7 @@ const config: Config = {
 	},
 	compilerOptions: {
 		// Keep the project in runes mode, except for dependencies.
-		runes: ({ filename }) =>
-			filename.split(/[/\\]/).includes('node_modules') ? undefined : true,
+		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true),
 		experimental: {
 			async: true
 		}

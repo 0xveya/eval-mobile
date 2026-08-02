@@ -1,0 +1,10 @@
+.git
+.github
+.jj
+.svelte-kit
+build
+node_modules
+.env
+.env.*
+!.env.example
+npm-debug.log*

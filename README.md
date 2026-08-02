@@ -1,42 +1,45 @@
-# sv
+# eval-mobile
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+Mobile-first 42 evaluation and availability manager built with SvelteKit.
 
-## Creating a project
+## Development
 
-If you're seeing this, you've probably already done this step. Congrats!
-
-```sh
-# create a new project
-npx sv create my-app
-```
-
-To recreate this project with the same configuration:
+Copy `.env.example` to `.env`, fill in the 42 OAuth values and a long random
+`SESSION_SECRET`, then run:
 
 ```sh
-# recreate this project
-bun x sv@0.17.0 create --template minimal --types ts --add prettier eslint --install bun eval-mobile
+docker compose up -d valkey
+bun install
+bun run dev
 ```
 
-## Developing
+Set `PUBLIC_USE_MOCK_DATA=true` for local fixtures. With the default `false`,
+slots and bookable projects are read from the authenticated 42 API. Live slots
+are cached for 30 seconds, bookable teams for two minutes, the current user for
+15 minutes, and campus settings for six hours.
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## NAS deployment
 
 ```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
+cp .env.example .env
+# edit .env
+docker compose up -d --build
 ```
 
-## Building
+The app is exposed on `APP_PORT` (default `3000`) and Valkey is only available
+inside the `eval-mobile` Docker network. To add Caddy later, attach its service
+to the external network named `eval-mobile` and proxy to `app:3000`.
 
-To create a production version of your app:
+Set `APP_BIND_ADDRESS=127.0.0.1` if the app should only be reachable through a
+reverse proxy running on the same NAS.
+
+## Validation
 
 ```sh
-npm run build
+bun run check
+bun run lint
+bun run build
 ```
 
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+GitHub Actions runs those commands and builds the Docker image on every push and
+pull request.

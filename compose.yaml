@@ -1,20 +1,47 @@
 services:
+  app:
+    build:
+      context: .
+    image: eval-mobile:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      VALKEY_URL: redis://valkey:6379
+    ports:
+      - '${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-3000}:3000'
+    depends_on:
+      valkey:
+        condition: service_healthy
+    networks:
+      - eval-mobile
+
   valkey:
     image: valkey/valkey:9.1.1-alpine
-    container_name: eval-valkey
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:6379:6379"
     command:
       - valkey-server
       - --appendonly
-      - "yes"
+      - 'yes'
       - --maxmemory
-      - "64mb"
+      - '64mb'
       - --maxmemory-policy
       - volatile-ttl
     volumes:
       - valkey-data:/data
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - eval-mobile
 
 volumes:
   valkey-data:
+
+networks:
+  eval-mobile:
+    name: eval-mobile
