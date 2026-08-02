@@ -7,6 +7,9 @@
 		id,
 		draft = false,
 		past = false,
+		locked = false,
+		showStartHandle = true,
+		showEndHandle = true,
 		onmove,
 		onresize,
 		onremove
@@ -15,45 +18,57 @@
 		id: string;
 		draft?: boolean;
 		past?: boolean;
+		locked?: boolean;
+		showStartHandle?: boolean;
+		showEndHandle?: boolean;
 		onmove: (event: PointerEvent, element: HTMLElement) => void;
 		onresize: (event: PointerEvent, edge: 'start' | 'end', element: HTMLElement) => void;
 		onremove: (event: MouseEvent) => void;
 	} = $props();
 
 	const label = $derived(draft ? 'Draft' : (slot as CalendarSlot).label);
+
+	function handleMoveDown(event: PointerEvent, element: HTMLElement) {
+		if (locked) {
+			event.stopPropagation();
+			return;
+		}
+		onmove(event, element);
+	}
 </script>
 
 <div
 	class="slot"
 	class:draft
 	class:past
+	class:locked
 	data-slot-id={id}
 	role="group"
 	aria-label={`${label}, draggable slot`}
 	style={`top:${slotTop(slot.startMinutes)}%;height:${slotHeight(slot.startMinutes, slot.endMinutes)}%`}
-	onpointerdown={(event) => onmove(event, event.currentTarget)}
+	onpointerdown={(event) => handleMoveDown(event, event.currentTarget)}
 >
-	<button
-		class="resize top"
-		type="button"
-		aria-label={`Resize start of ${label}`}
-		onpointerdown={(event) => onresize(event, 'start', event.currentTarget)}><span></span></button
-	>
+	{#if !locked && showStartHandle}<button
+			class="resize top"
+			type="button"
+			aria-label={`Resize start of ${label}`}
+			onpointerdown={(event) => onresize(event, 'start', event.currentTarget)}><span></span></button
+		>{/if}
 	<button
 		class="remove"
 		type="button"
-		aria-label={`Remove ${label}`}
+		aria-label={locked ? `Cancel ${label}` : `Remove ${label}`}
 		onpointerdown={(event) => event.stopPropagation()}
 		onclick={onremove}>×</button
 	>
 	<strong>{label}</strong>
 	<span>{formatMinutes(slot.startMinutes)}–{formatMinutes(slot.endMinutes)}</span>
-	<button
-		class="resize bottom"
-		type="button"
-		aria-label={`Resize end of ${label}`}
-		onpointerdown={(event) => onresize(event, 'end', event.currentTarget)}><span></span></button
-	>
+	{#if !locked && showEndHandle}<button
+			class="resize bottom"
+			type="button"
+			aria-label={`Resize end of ${label}`}
+			onpointerdown={(event) => onresize(event, 'end', event.currentTarget)}><span></span></button
+		>{/if}
 </div>
 
 <style>
@@ -89,6 +104,12 @@
 		color: #66625a;
 		opacity: 0.58;
 	}
+	.slot.locked {
+		border-color: #a82020;
+		background: #f4caca;
+		color: #681414;
+		cursor: default;
+	}
 	strong {
 		padding-right: 1.25rem;
 		font-size: 0.78rem;
@@ -99,10 +120,10 @@
 	}
 	.resize {
 		position: absolute;
-		left: 0;
-		right: 0;
+		left: 0.3rem;
+		right: 0.3rem;
 		z-index: 2;
-		height: 0.85rem;
+		height: 0.55rem;
 		padding: 0;
 		border: 0;
 		background: transparent;
@@ -111,12 +132,12 @@
 	}
 	.resize span {
 		display: block;
-		width: 2.3rem;
-		height: 3px;
+		width: 2.5rem;
+		height: 2px;
 		margin: auto;
 		border-radius: 1rem;
 		background: currentColor;
-		opacity: 0.4;
+		opacity: 0.7;
 	}
 	.top {
 		top: 0;
@@ -126,8 +147,9 @@
 	}
 	.remove {
 		position: absolute;
-		top: 0.22rem;
+		top: 50%;
 		right: 0.22rem;
+		transform: translateY(-50%);
 		z-index: 4;
 		width: 1.2rem;
 		height: 1.2rem;
