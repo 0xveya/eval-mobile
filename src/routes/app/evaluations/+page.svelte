@@ -2,13 +2,13 @@
 	type MockProject = {
 		id: string;
 		name: string;
-		status: 'Succeeded' | 'Ready to book';
+		status: 'Ready to book';
 		submitted: string;
 	};
 
 	const projects: MockProject[] = [
 		{ id: 'libft', name: 'Libft', status: 'Ready to book', submitted: 'Submitted today' },
-		{ id: 'printf', name: 'ft_printf', status: 'Succeeded', submitted: 'Passed last week' }
+		{ id: 'minishell', name: 'minishell', status: 'Ready to book', submitted: 'Submitted today' }
 	];
 
 	let selectedId = $state(projects[0].id);
@@ -43,7 +43,7 @@
 					<strong>{project.name}</strong>
 					<small>{project.submitted}</small>
 				</span>
-				<b class:ready={project.status === 'Ready to book'}>{project.status}</b>
+				<b class="ready">{project.status}</b>
 			</label>
 		{/each}
 	</fieldset>
