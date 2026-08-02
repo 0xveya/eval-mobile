@@ -13,10 +13,27 @@ export type Token = v.InferOutput<typeof tokenSchema>;
 
 export const meSchema = v.object({
 	id: v.number(),
-	login: v.string()
+	login: v.string(),
+	campus_users: v.optional(
+		v.array(
+			v.looseObject({
+				campus_id: v.number(),
+				is_primary: v.boolean()
+			})
+		),
+		[]
+	)
 });
 
 export type Me = v.InferOutput<typeof meSchema>;
+
+export const campusSchema = v.looseObject({
+	id: v.number(),
+	name: v.string(),
+	minimum_slot_duration: v.optional(v.nullable(v.number()), 30)
+});
+
+export type Campus = v.InferOutput<typeof campusSchema>;
 
 const teamUserSchema = v.looseObject({
 	id: v.number(),

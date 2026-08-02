@@ -3,6 +3,7 @@ import { scaleTeams } from '../resources/scale-teams';
 import { slots } from '../resources/slots';
 import { users } from '../resources/users';
 import { teams } from '../resources/teams';
+import { campuses } from '../resources/campus';
 
 export function createFortyTwoClient(accessToken: string) {
 	const request = createRequest(accessToken);
@@ -10,6 +11,7 @@ export function createFortyTwoClient(accessToken: string) {
 	return {
 		users: users(request),
 		teams: teams(request),
+		campuses: campuses(request),
 		slots: slots(request),
 		scaleTeams: scaleTeams(request)
 	};
